@@ -167,6 +167,10 @@ config MODULE_SHELL_CMD_I2C_SCAN
     depends on MODULE_SHELL_CMDS
     depends on MODULE_PERIPH_I2C
 
+config MODULE_SHELL_CMD_IKECTRL
+    bool "Command for managing IPSec"
+    depends on MODULE_SHELL_CMDS
+
 config MODULE_SHELL_CMD_LWIP_NETIF
     bool "Command to manage lwIP network interfaces (ifconfig)"
     default y if MODULE_SHELL_CMDS_DEFAULT
