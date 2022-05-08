@@ -59,6 +59,55 @@ typedef enum {
     IKE_PT_ENCRYPTED_AND_AUTHENTICATED = 46,
 } ike_payload_type_t;
 
+typedef enum {
+    IKE_PROTO_IKE = 1,
+    IKE_PROTO_AH = 2,
+    IKE_PROTO_ESP = 3,
+} ike_protocol_id_t;
+
+typedef enum {
+    IKE_TRANSFORM_TYPE_ENCR = 1,
+    IKE_TRANSFORM_TYPE_PRF = 2,
+    IKE_TRANSFORM_TYPE_INTEG = 3,
+    IKE_TRANSFORM_TYPE_DH = 4,
+    IKE_TRANSFORM_TYPE_ESN = 5,
+} ike_transform_type_t;
+
+typedef enum {
+    IKE_TRANSFORM_ENCR_3DES = 3,
+    IKE_TRANSFORM_ENCR_AES_CBC = 12,
+} ike_transform_encr_t;
+
+typedef enum {
+    IKE_TRANSFORM_PRF_HMAC_MD5 = 1,
+    IKE_TRANSFORM_PRF_HMAC_SHA1 = 2,
+} ike_transform_prf_t;
+
+typedef enum {
+    IKE_TRANSFORM_AUTH_HMAC_MD5_96 = 1,
+    IKE_TRANSFORM_AUTH_HMAC_SHA1_96 = 2,
+    IKE_TRANSFORM_AUTH_AES_XCBC_96 = 5,
+} ike_transform_integ_t;
+
+typedef enum {
+    IKE_TRANSFORM_MODP768 = 1,
+    IKE_TRANSFORM_MODP1024 = 2,
+    IKE_TRANSFORM_MODP1536 = 5,
+    IKE_TRANSFORM_MODP2048 = 14,
+} ike_transform_dh_t;
+
+typedef enum {
+    IKE_TRANSFORM_ESN_OFF = 0,
+    IKE_TRANSFORM_ESN_ON = 1,
+} ike_transform_esn_t;
+
+typedef enum {
+    IKE_TRANSFORM_ATTRIBUTE_KEYLEN = 14,
+} ike_transform_attribute_type_t;
+
+
+
+
 typedef struct __attribute__((packed)) {
     uint64_t ike_sa_spi_i;
     uint64_t ike_sa_spi_r;
@@ -99,7 +148,7 @@ typedef struct __attribute__((packed)) {
     uint8_t reserved;
     uint16_t proposal_length;
     uint8_t proposal_num;
-    uint8_t protosol_id;
+    uint8_t protocol_id;
     uint8_t spi_size;
     uint8_t num_transforms;
     char * spi;

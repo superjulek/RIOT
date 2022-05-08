@@ -17,6 +17,7 @@
 
 #include "ike/ike.h"
 #include "ike/ike_structures.h"
+#include "ike/chunk.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -33,36 +34,6 @@
 
 #define IKE_NONCE_I_LEN 16
 
-typedef struct {
-    size_t len;
-    char *ptr;
-} chunk_t;
-
-inline void free_chunk(chunk_t *chunk)
-{
-    if (chunk->len)
-    {
-        free(chunk->ptr);
-    }
-}
-
-inline chunk_t malloc_chunk(size_t size)
-{
-    chunk_t chunk = {
-        .len = size,
-        .ptr = malloc(size),
-    };
-    return chunk;
-}
-
-inline void printf_chunk(chunk_t chunk)
-{
-    printf("0x");
-    for (int i = 0; i < (int)chunk.len; ++i)
-    {
-        printf("%02X ", *(chunk.ptr + i) & 0xff);
-    }
-}
 
 typedef struct {
     ike_state_t state;
