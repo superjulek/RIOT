@@ -19,6 +19,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+chunk_t empty_chunk = {
+    .ptr = NULL,
+    .len = 0,
+};
 void free_chunk(chunk_t *chunk)
 {
     if (chunk->len)

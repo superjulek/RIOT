@@ -28,7 +28,18 @@ USEMODULE += ps
 USEMODULE += netstats_l2
 USEMODULE += netstats_ipv6
 USEMODULE += netstats_rpl
+
 USEMODULE += ike
+
+USEMODULE += sock_udp
+USEPKG += wolfssl
+USEMODULE += wolfcrypt
+USEMODULE += wolfssl
+USEMODULE += wolfssl_dtls
+USEMODULE += wolfcrypt_rsa wolfcrypt_dh
+USEMODULE += wolfssl_psk
+
+CFLAGS_OPT = -O0
 
 # Optionally include DNS support. This includes resolution of names at an
 # upstream DNS server and the handling of RDNSS options in Router Advertisements

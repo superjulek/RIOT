@@ -24,31 +24,34 @@ typedef struct __attribute__((packed)) {
     uint16_t transform_id;
 } ike_transform_substructure_const_t;
 
-int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payload, ike_protocol_id_t protocol,
+int build_sa_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_protocol_id_t protocol,
     ike_transform_encr_t encr, ike_transform_prf_t prf, ike_transform_integ_t integ,
     ike_transform_dh_t dh, ike_transform_esn_t esn, size_t key_size, chunk_t spi)
 {
     uint16_t len = 0;
     uint16_t proposal_len = 0;
     uint8_t proposals_num = 0;
+
+    /* What to build - 2 means it is last transform */
     int build_enc = 0;
     int build_prf = 0;
     int build_integ = 0;
     int build_dh = 0;
     int build_esn = 0;
+
     if (max_len - len < sizeof(ike_generic_payload_header_t) + sizeof(ike_proposal_substructure_const_t) + spi.len)
     {
         return -ENOMEM;
     }
     // Set headers when length is known
-    len += sizeof(ike_generic_payload_header_t);
+    len += sizeof(ike_generic_payload_header_t) + sizeof(ike_proposal_substructure_const_t) + spi.len;
     switch (protocol)
     {
         case (IKE_PROTO_IKE):
             build_enc = 1;
             build_prf = 1;
             build_integ = 1;
-            build_dh = 1;
+            build_dh = 2;
             break;
         case (IKE_PROTO_AH):
             //break;
@@ -65,7 +68,7 @@ int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payloa
         } enc_substr_t;
         enc_substr_t e = {
             .h = {
-                .last = 0,
+                .last = build_enc == 2 ? 0 : 3,
                 .transform_length = htons(sizeof(enc_substr_t)),
                 .transform_type = IKE_TRANSFORM_TYPE_ENCR,
                 .transform_id = htons(encr),
@@ -91,7 +94,7 @@ int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payloa
         } prf_substr_t;
         prf_substr_t e = {
             .h = {
-                .last = 0,
+                .last = build_prf == 2 ? 0 : 3,
                 .transform_length = htons(sizeof(prf_substr_t)),
                 .transform_type = IKE_TRANSFORM_TYPE_PRF,
                 .transform_id = htons(prf),
@@ -113,7 +116,7 @@ int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payloa
         } integ_substr_t;
         integ_substr_t e = {
             .h = {
-                .last = 0,
+                .last = build_integ == 2 ? 0 : 3,
                 .transform_length = htons(sizeof(integ_substr_t)),
                 .transform_type = IKE_TRANSFORM_TYPE_INTEG,
                 .transform_id = htons(integ),
@@ -135,7 +138,7 @@ int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payloa
         } dh_substr_t;
         dh_substr_t e = {
             .h = {
-                .last = 0,
+                .last = build_dh == 2 ? 0 : 3,
                 .transform_length = htons(sizeof(dh_substr_t)),
                 .transform_type = IKE_TRANSFORM_TYPE_DH,
                 .transform_id = htons(dh),
@@ -157,7 +160,7 @@ int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payloa
         } esn_substr_t;
         esn_substr_t e = {
             .h = {
-                .last = 0,
+                .last = build_esn == 2 ? 0 : 3,
                 .transform_length = htons(sizeof(esn_substr_t)),
                 .transform_type = IKE_TRANSFORM_TYPE_ESN,
                 .transform_id = htons(esn),
@@ -172,13 +175,13 @@ int build_sa_payload(char *start, size_t max_len, ike_payload_type_t next_payloa
         proposal_len += sizeof(e);
         proposals_num ++;
     }
+    *new_len = sizeof(ike_generic_payload_header_t) + sizeof(ike_proposal_substructure_const_t) + spi.len + proposal_len;
     ike_generic_payload_header_t h = {
         .next_payload = next_payload,
-        .payload_length = htons(sizeof(ike_generic_payload_header_t) +
-            sizeof(ike_proposal_substructure_const_t) + spi.len + proposal_len)
+        .payload_length = htons(*new_len),
     };
     ike_proposal_substructure_const_t ph = {
-        .proposal_length = htons(proposal_len),
+        .proposal_length = htons(proposal_len + sizeof(ike_proposal_substructure_const_t)),
         .proposal_num = 1,
         .protocol_id = protocol,
         . spi_size = spi.len,
