@@ -18,6 +18,7 @@
 #include "ike/ike.h"
 #include "ike/ike_structures.h"
 #include "ike/chunk.h"
+#include "ike/ike_payloads.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -33,6 +34,7 @@
 #include "random.h"
 
 #define IKE_NONCE_I_LEN 16
+#define MSG_BUF_LEN 1280
 
 
 typedef struct {
@@ -40,6 +42,12 @@ typedef struct {
     uint64_t ike_spi_i;
     uint64_t ike_spi_r;
     chunk_t ike_nonce_i;
+    ike_transform_encr_t ike_encr;
+    size_t ike_key_size;
+    ike_transform_prf_t ike_prf;
+    ike_transform_integ_t ike_integ;
+    ike_transform_dh_t ike_dh;
+    ike_transform_esn_t ike_esn;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -47,7 +55,7 @@ static _ike_ctx_t ike_ctx;
 static int _send_data(char *addr_str, char *data, size_t datalen);
 static int _init_context(void);
 static int _reset_context(void);
-static int _build_init_i(char **msg, size_t *msg_len);
+static int _build_init_i(char *msg, size_t *msg_len);
 
 
 int ike_init(char *addr_str)
@@ -64,13 +72,12 @@ int ike_init(char *addr_str)
         puts("Initiating IKE context failed");
     }
     size_t len;
-    char *data;
-    if (_build_init_i(&data, &len) < 0)
+    char data[MSG_BUF_LEN];
+    if (_build_init_i(data, &len) < 0)
     {
         return -1;
     }
     _send_data(addr_str, data, len);
-    free(data);
 
     return 0;
 }
@@ -141,57 +148,75 @@ static int _reset_context(void)
 static int _init_context(void)
 {
     puts("Initiating IKE context");
+
     /* Generate random values */
     uint64_t spi_i;
     random_bytes((uint8_t *)&spi_i, sizeof(uint64_t));
+    printf("New IKE initiator SPI: 0x%llX\n", spi_i);
+
     chunk_t ike_nonce_i = malloc_chunk(IKE_NONCE_I_LEN);
     random_bytes((uint8_t *)ike_nonce_i.ptr, ike_nonce_i.len);
-    printf("New IKE initiator SPI: 0x%llX\n", spi_i);
     printf("New IKE initiatior Nonce: ");
     printf_chunk(ike_nonce_i);
     puts("");
+
     _ike_ctx_t new_ike_ctx = {
         .ike_spi_i = spi_i,
         .state = IKE_STATE_NEGOTIATION,
         .ike_nonce_i = ike_nonce_i,
+        .ike_encr = IKE_TRANSFORM_ENCR_AES_CBC,
+        .ike_key_size = 128,
+        .ike_prf = IKE_TRANSFORM_PRF_HMAC_SHA1,
+        .ike_integ = IKE_TRANSFORM_AUTH_HMAC_SHA1_96,
+        .ike_dh = IKE_TRANSFORM_MODP768,
+        .ike_esn = IKE_TRANSFORM_ESN_OFF,
     };
     ike_ctx = new_ike_ctx;
     return 0;
 }
 
-static int _build_init_i(char **msg, size_t *msg_len)
+static int _build_init_i(char *msg, size_t *msg_len)
 {
+    size_t cur_len = 0;
+    size_t new_len;
+    int error;
+
     /* Construct IKE header */
     ike_header_t hdr = {
         .ike_sa_spi_i = htonll(ike_ctx.ike_spi_i),
         .ike_sa_spi_r = 0,
-        .next_payload = IKE_PT_NONCE,
+        .next_payload = IKE_PT_SECURITY_ASSOCIATION,
         .mjver_mnver = IKE_V2_MJVER | IKE_V2_MNVER,
         .exchange_type = IKE_ET_IKE_SA_INIT,
         .flags = IKE_INITIATOR_FLAG,
         .message_id = 0,
         .length = 0,
     };
-    *msg_len = sizeof(ike_header_t);
-    /* Contruct Nonce payload */
-    ike_nonce_payload_t nonce_p = {
-        .hdr = {
-            .next_payload = IKE_PT_NO_NEXT_PAYLOAD,
-            .critical_reserved = 0,
-            .payload_length = htons(offsetof(ike_nonce_payload_t, nonce_data) + ike_ctx.ike_nonce_i.len),
-        },
-        .nonce_data = ike_ctx.ike_nonce_i.ptr,
-    };
-    *msg_len += ntohs(nonce_p.hdr.payload_length);
-    /**/
-    /* Build messsage */
-    hdr.length = htonl(*msg_len);
-    *msg = malloc(*msg_len);
-    char *p = *msg;
-    memcpy(p, &hdr, sizeof(ike_header_t));
-    p += sizeof(ike_header_t);
-    memcpy(p, (char *)&nonce_p, offsetof(ike_nonce_payload_t, nonce_data));
-    p += offsetof(ike_nonce_payload_t, nonce_data);
-    memcpy(p, nonce_p.nonce_data, ike_ctx.ike_nonce_i.len);
+    cur_len += sizeof(hdr);
+
+    /* Construct SA payload */
+    error = build_sa_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NONCE, IKE_PROTO_IKE, ike_ctx.ike_encr,
+        ike_ctx.ike_prf, ike_ctx.ike_integ, ike_ctx.ike_dh, ike_ctx.ike_esn, ike_ctx.ike_key_size, empty_chunk);
+    if (error < 0) return error;
+    cur_len += new_len;
+
+    /* Construct Nonce payload */
+    error = build_nonce_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_KEY_EXCHANGE, ike_ctx.ike_nonce_i);
+    if (error < 0) return error;
+    cur_len += new_len;
+
+    /* Construct Nonce payload */
+    chunk_t pubkey = malloc_chunk(96);// TODO: temp solution
+    random_bytes((uint8_t *)pubkey.ptr, pubkey.len);
+    error = build_key_exchange_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD, ike_ctx.ike_dh, pubkey);
+    free_chunk(&pubkey);
+    if (error < 0) return error;
+    cur_len += new_len;
+
+    /* Prepend header */
+    hdr.length = htonl(cur_len);
+    memcpy(msg, &hdr, sizeof(hdr));
+    *msg_len = cur_len;
+
     return 0;
 }

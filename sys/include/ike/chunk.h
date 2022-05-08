@@ -40,6 +40,7 @@ chunk_t malloc_chunk(size_t size);
 
 void printf_chunk(chunk_t chunk);
 
+extern chunk_t empty_chunk;
 
 #ifdef __cplusplus
 }
