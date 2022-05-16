@@ -30,6 +30,8 @@
 #include "net/gnrc/udp.h"
 #include "net/gnrc/netreg.h"
 #include "net/utils.h"
+#include "xtimer.h"
+#include "od.h"
 
 #include "random.h"
 
@@ -53,6 +55,7 @@ typedef struct {
 static _ike_ctx_t ike_ctx;
 
 static int _send_data(char *addr_str, char *data, size_t datalen);
+static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t timeout);
 static int _init_context(void);
 static int _reset_context(void);
 static int _build_init_i(char *msg, size_t *msg_len);
@@ -72,12 +75,15 @@ int ike_init(char *addr_str)
         puts("Initiating IKE context failed");
     }
     size_t len;
-    char data[MSG_BUF_LEN];
-    if (_build_init_i(data, &len) < 0)
+    char data_out[MSG_BUF_LEN];
+    char data_in[MSG_BUF_LEN];
+    if (_build_init_i(data_out, &len) < 0)
     {
         return -1;
     }
-    _send_data(addr_str, data, len);
+    _send_data(addr_str, data_out, len);
+    uint32_t timeout = 5;
+    _receive_data(addr_str, data_in, &len, timeout);
 
     return 0;
 }
@@ -134,6 +140,147 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
            port);
     return 0;
 }
+
+static void _process_incoming(gnrc_pktsnip_t *pkt, chunk_t *recv_chunk)
+{
+    int snips = 0;
+    int size = 0;
+    gnrc_pktsnip_t *snip = pkt;
+    //int address_ok = false;
+    //uint64_t src_port = 0;
+
+    while (snip != NULL) {
+        printf("~~ SNIP %2i - size: %3u byte, type: ", snips, (unsigned int)snip->size);
+
+        size_t hdr_len = 0;
+
+        switch (snip->type)
+        {
+            case GNRC_NETTYPE_UDP:
+                printf("NETTYPE_UDP (%i)\n", snip->type);
+                if (IS_USED(MODULE_UDP)) {
+                    udp_hdr_print(snip->data);
+                    hdr_len = sizeof(udp_hdr_t);
+                }
+                break;
+            case GNRC_NETTYPE_IPV6:
+                printf("NETTYPE_IPV6 (%i)\n", snip->type);
+                if (IS_USED(MODULE_IPV6_HDR)) {
+                    ipv6_hdr_print(snip->data);
+                    hdr_len = sizeof(ipv6_hdr_t);
+                }
+                break;
+            case GNRC_NETTYPE_NETIF:
+                printf("NETTYPE_NETIF (%i)\n", snip->type);
+                if (IS_USED(MODULE_GNRC_NETIF_HDR)) {
+                    gnrc_netif_hdr_print(snip->data);
+                    hdr_len = snip->size;
+                }
+                break;
+            case GNRC_NETTYPE_UNDEF:
+                printf("NETTYPE_UNDEF (%i)\n", snip->type);
+                if (hdr_len < snip->size) {
+                    size_t data_size = snip->size - hdr_len;
+                    od_hex_dump(((uint8_t *)snip->data) + hdr_len, data_size, OD_WIDTH_DEFAULT);
+                    if (data_size <= MSG_BUF_LEN)
+                    {
+                        memcpy(recv_chunk->ptr, snip->data, data_size);
+                        recv_chunk->len = data_size;
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+
+        ++snips;
+        size += snip->size;
+        snip = snip->next;
+    }
+    printf("~~ PKT    - %2i snips, total size: %3i byte\n", snips, size);
+}
+
+static void *_eventloop(void *arg)
+{
+    chunk_t *recv_chunk = (chunk_t *) arg;
+    msg_t msg, reply;
+    msg_t server_queue[1];
+
+    /* setup the message queue */
+    msg_init_queue(server_queue, 1);
+
+    reply.content.value = (uint32_t)(-ENOTSUP);
+    reply.type = GNRC_NETAPI_MSG_TYPE_ACK;
+
+    while (1) {
+        msg_receive(&msg);
+
+        switch (msg.type) {
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                printf("Packets received");
+                _process_incoming(msg.content.ptr, recv_chunk);
+                gnrc_pktbuf_release(msg.content.ptr);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_GET:
+            case GNRC_NETAPI_MSG_TYPE_SET:
+                msg_reply(&msg, &reply);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /* never reached */
+    return NULL;
+}
+
+static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t timeout)
+{
+    (void )addr_str;
+    (void) data;
+    (void) datalen;
+    uint16_t port = 500;
+    chunk_t receive_chunk = {
+        .ptr = data,
+    };
+    
+    gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(0, KERNEL_PID_UNDEF);
+    kernel_pid_t server_pid = KERNEL_PID_UNDEF;
+    static char server_stack[THREAD_STACKSIZE_MAIN];
+    
+    server_pid = thread_create(server_stack, sizeof(server_stack), THREAD_PRIORITY_MAIN - 1,
+        THREAD_CREATE_STACKTEST, _eventloop, (void*)&receive_chunk, "UDP server");
+    if (server_pid <= KERNEL_PID_UNDEF)
+    {
+        puts("Error: can not start server thread");
+        return -1;
+    }
+    /* register server to receive messages from given port */
+    gnrc_netreg_entry_init_pid(&server, port, server_pid);
+    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
+    printf("Waiting for message on port %" PRIu16 "\n", port);
+    for (uint32_t i = 0; i < timeout; ++i)
+    {
+        xtimer_sleep(1);
+        if (receive_chunk.len)
+        {
+            break;
+        }
+    }
+    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &server);
+    gnrc_netreg_entry_init_pid(&server, 0, KERNEL_PID_UNDEF);
+    puts("Finished waiting");
+    if (receive_chunk.len)
+    {
+        puts("Received data:");
+        od_hex_dump(receive_chunk.ptr, receive_chunk.len, 0);
+    }
+    return 0;
+}
+
+
+
+
 
 static int _reset_context(void)
 {
