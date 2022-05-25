@@ -44,6 +44,7 @@ typedef struct {
     uint64_t ike_spi_i;
     uint64_t ike_spi_r;
     chunk_t ike_nonce_i;
+    chunk_t ike_nonce_r;
     ike_transform_encr_t ike_encr;
     size_t ike_key_size;
     ike_transform_prf_t ike_prf;
@@ -59,6 +60,7 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
 static int _init_context(void);
 static int _reset_context(void);
 static int _build_init_i(char *msg, size_t *msg_len);
+static int _parse_init_r(char *msg, size_t msg_len);
 
 
 int ike_init(char *addr_str)
@@ -68,22 +70,40 @@ int ike_init(char *addr_str)
         if (_reset_context() < 0)
         {
             puts("Resetting IKE context failed");
+            return -1;
         }
     }
     if (_init_context() < 0)
     {
         puts("Initiating IKE context failed");
+        return -1;
     }
     size_t len;
     char data_out[MSG_BUF_LEN];
     char data_in[MSG_BUF_LEN];
     if (_build_init_i(data_out, &len) < 0)
     {
+        puts("Building IKE INIT message failed");
         return -1;
     }
-    _send_data(addr_str, data_out, len);
+    if (_send_data(addr_str, data_out, len) < 0)
+    {
+        puts("Sending IKE INIT message failed");
+        return -1;
+    }
     uint32_t timeout = 5;
-    _receive_data(addr_str, data_in, &len, timeout);
+    if (_receive_data(addr_str, data_in, &len, timeout) < 0)
+    {
+        puts("Receiving IKE INIT message failed");
+        // TODO: retry
+        return -1;
+    }
+    if (_parse_init_r(data_out, len) < 0)
+    {
+        puts("Parsing IKE INIT message failed");
+        return -1;
+    }
+
 
     return 0;
 }
@@ -365,5 +385,39 @@ static int _build_init_i(char *msg, size_t *msg_len)
     memcpy(msg, &hdr, sizeof(hdr));
     *msg_len = cur_len;
 
+    return 0;
+}
+
+static int _parse_init_r(char *msg, size_t msg_len)
+{
+    size_t remaining_len = msg_len;
+    char *p = msg;
+    ike_header_t *ike_hdr;
+    size_t cur_len;
+    ike_payload_type_t next_type;
+    if (msg_len < sizeof(ike_header_t)) {
+        return -EMSGSIZE;
+    }
+    ike_hdr = (ike_header_t*)p;
+    if (ntohl(ike_hdr->length) != msg_len) {
+        return -EMSGSIZE;
+    }
+    // TODO: more checks
+    next_type = ike_hdr->next_payload;
+    remaining_len -= sizeof(ike_header_t);
+    p += sizeof(ike_header_t);
+    while (remaining_len > 0)
+    {
+        switch (next_type) {
+            default:
+                if (process_unknown_payload(p, remaining_len, &cur_len, &next_type) < 0)
+                {
+                    return -1;
+                }
+                printf("Parsed unknown payload of size %u\n", cur_len);
+                remaining_len -= cur_len;
+                p += cur_len;
+        }
+    }
     return 0;
 }
