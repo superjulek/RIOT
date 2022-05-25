@@ -194,12 +194,13 @@ int build_sa_payload(char *start, size_t max_len, size_t *new_len, ike_payload_t
     return 0;
 }
 
-int process_sa_payload(char *start, size_t max_len, ike_payload_type_t *next_payload, ike_protocol_id_t *protocol,
+int process_sa_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_protocol_id_t *protocol,
     ike_transform_encr_t *encr, ike_transform_prf_t *prf, ike_transform_integ_t *integ,
     ike_transform_dh_t *dh, ike_transform_esn_t *esn, size_t *key_size, chunk_t *spi)
 {
     (void)start; /* Unused parameter */
     (void)max_len; /* Unused parameter */
+    (void)cur_len; /* Unused parameter */
     (void)next_payload; /* Unused parameter */
     (void)protocol; /* Unused parameter */
     (void)encr; /* Unused parameter */

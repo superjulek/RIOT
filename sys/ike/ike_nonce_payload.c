@@ -24,10 +24,11 @@ int build_nonce_payload(char *start, size_t max_len, size_t *new_len, ike_payloa
 }
 
 
-int process_nonce_payload(char *start, size_t max_len, ike_payload_type_t *next_payload, chunk_t *nonce)
+int process_nonce_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, chunk_t *nonce)
 {
     (void)start; /* Unused parameter */
     (void)max_len; /* Unused parameter */
+    (void)cur_len; /* Unused parameter */
     (void)next_payload; /* Unused parameter */
     (void)nonce; /* Unused parameter */
     return 0;
