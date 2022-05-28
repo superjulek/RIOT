@@ -22,8 +22,5 @@ int process_generic_payload_header(char *start, size_t max_len, size_t *cur_len,
 
 int process_unknown_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload)
 {
-    int ret = process_generic_payload_header(start, max_len, cur_len, next_payload);
-    if (ret)
-        return ret;
-    return 0;
+    return process_generic_payload_header(start, max_len, cur_len, next_payload);
 }
