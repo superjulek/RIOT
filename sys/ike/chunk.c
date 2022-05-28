@@ -18,6 +18,7 @@
 #include "ike/chunk.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "od.h"
 
 chunk_t empty_chunk = {
     .ptr = NULL,
@@ -29,6 +30,7 @@ void free_chunk(chunk_t *chunk)
     {
         free(chunk->ptr);
     }
+    chunk->len = 0;
 }
 
 chunk_t malloc_chunk(size_t size)
@@ -40,11 +42,7 @@ chunk_t malloc_chunk(size_t size)
     return chunk;
 }
 
-void printf_chunk(chunk_t chunk)
+void printf_chunk(chunk_t chunk, uint8_t width)
 {
-    printf("0x");
-    for (int i = 0; i < (int)chunk.len; ++i)
-    {
-        printf("%02X ", *(chunk.ptr + i) & 0xff);
-    }
+    od_hex_dump(chunk.ptr, chunk.len, width);
 }
