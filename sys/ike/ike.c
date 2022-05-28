@@ -74,7 +74,8 @@ static int _build_init_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
 static int _generate_key(void);
 static int _get_secrets(void);
-int _prf(chunk_t key, chunk_t seed, chunk_t *out);
+static int _prf(chunk_t key, chunk_t seed, chunk_t *out);
+static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out);
 
 static inline uint32_t untoh32(void *network)
 {
@@ -440,6 +441,7 @@ static int _parse_init_r(char *msg, size_t msg_len)
         puts("Message length mismatch");
         return -EMSGSIZE;
     }
+    ike_ctx.ike_spi_r = ntohll(ike_hdr->ike_sa_spi_r);
     // TODO: more checks
     next_type = ike_hdr->next_payload;
     remaining_len -= sizeof(ike_header_t);
@@ -564,10 +566,29 @@ static int _get_secrets(void)
     free_chunk(&nonce_concat);
     puts("SKEYSEED:");
     printf_chunk(ike_ctx.skeyseed, 8);
+    chunk_t tmp = empty_chunk;
+    chunk_t ni_nr_spi_spr = malloc_chunk(ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len + sizeof(ike_ctx.ike_spi_i) + sizeof(ike_ctx.ike_spi_r));
+    uint64_t n_ike_spi_i = htonll(ike_ctx.ike_spi_i);
+    uint64_t n_ike_spi_r = htonll(ike_ctx.ike_spi_r);
+    memcpy(ni_nr_spi_spr.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
+    memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
+    memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len, &n_ike_spi_i, sizeof(ike_ctx.ike_spi_i));
+    memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len + sizeof(ike_ctx.ike_spi_i), &n_ike_spi_r, sizeof(ike_ctx.ike_spi_r));
+    if (_prf_plus(ike_ctx.skeyseed, ni_nr_spi_spr, 132, &tmp) != 0)
+    {
+        free_chunk(&ni_nr_spi_spr);
+        return -1;
+    }
+
+    puts("TMP MIX:");
+    printf_chunk(tmp, 4);
+    free_chunk(&ni_nr_spi_spr);
+    free_chunk(&tmp);
+
     return 0;
 }
 
-int _prf(chunk_t key, chunk_t seed, chunk_t *out)
+static int _prf(chunk_t key, chunk_t seed, chunk_t *out)
 {
     Hmac hmac;
     if (wc_HmacInit(&hmac, NULL, INVALID_DEVID) != 0)
@@ -584,4 +605,40 @@ int _prf(chunk_t key, chunk_t seed, chunk_t *out)
     }
     wc_HmacFree(&hmac);
     return 0;
+}
+
+static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out)
+{
+    uint8_t cnt = 0x01;
+    chunk_t ret = empty_chunk;
+    int ret_code = -1;
+    chunk_t first_seed = malloc_chunk(seed.len + 1);
+    chunk_t next_seed = malloc_chunk(HASH_SIZE_SHA1 + seed.len + 1);
+    memcpy(first_seed.ptr, seed.ptr, seed.len);
+    memcpy(first_seed.ptr + seed.len, &cnt, 1);
+    memcpy(next_seed.ptr + HASH_SIZE_SHA1, seed.ptr, seed.len);
+    chunk_t t = empty_chunk;
+    if (_prf(key, first_seed, &t) != 0)
+        goto exit;
+    ret = malloc_chunk(t.len);
+    memcpy(ret.ptr, t.ptr, t.len);
+    while (ret.len < len)
+    {
+        cnt++;
+        memcpy(next_seed.ptr, t.ptr, t.len);
+        memcpy(next_seed.ptr + HASH_SIZE_SHA1 + seed.len, &cnt, 1);
+        free_chunk(&t);
+        if (_prf(key, next_seed, &t) != 0)
+            goto exit;
+        ret.ptr = realloc(ret.ptr, ret.len + HASH_SIZE_SHA1);
+        memcpy(ret.ptr + ret.len, t.ptr, t.len);
+        ret.len += HASH_SIZE_SHA1;
+    }
+    *out = ret;
+    ret_code = 0;
+exit:
+    free_chunk(&first_seed);
+    free_chunk(&next_seed);
+    free_chunk(&t);
+    return ret_code;
 }
