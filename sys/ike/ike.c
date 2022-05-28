@@ -25,6 +25,7 @@
 
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/dh.h>
+#include <wolfssl/wolfcrypt/hmac.h>
 
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/netif.h"
@@ -37,8 +38,9 @@
 
 #include "random.h"
 
-#define IKE_NONCE_I_LEN 16
+#define IKE_NONCE_I_LEN 32
 #define MSG_BUF_LEN 1280
+#define HASH_SIZE_SHA1 20
 
 typedef struct
 {
@@ -58,6 +60,8 @@ typedef struct
     chunk_t pubkey_i;
     chunk_t privkey_i;
     chunk_t pubkey_r;
+    chunk_t shared_secret;
+    chunk_t skeyseed;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -69,6 +73,17 @@ static int _reset_context(void);
 static int _build_init_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
 static int _generate_key(void);
+static int _get_secrets(void);
+int _prf(chunk_t key, chunk_t seed, chunk_t *out);
+
+static inline uint32_t untoh32(void *network)
+{
+    char *unaligned = (char *)network;
+    uint32_t tmp;
+
+    memcpy(&tmp, unaligned, sizeof(tmp));
+    return ntohl(tmp);
+}
 
 int ike_init(char *addr_str)
 {
@@ -323,6 +338,8 @@ static int _reset_context(void)
     free_chunk(&ike_ctx.ike_nonce_i);
     free_chunk(&ike_ctx.privkey_i);
     free_chunk(&ike_ctx.pubkey_i);
+    free_chunk(&ike_ctx.shared_secret);
+    free_chunk(&ike_ctx.skeyseed);
     wc_FreeDhKey(&ike_ctx.wc_priv_key);
     wc_FreeRng(&ike_ctx.wc_rng);
 
@@ -463,6 +480,10 @@ static int _parse_init_r(char *msg, size_t msg_len)
         remaining_len -= cur_len;
         p += cur_len;
     }
+    if (_get_secrets() < 0)
+    {
+        puts("Getting secrets failed");
+    }
     return 0;
 }
 
@@ -514,5 +535,53 @@ static int _generate_key(void)
     printf_chunk(ike_ctx.pubkey_i, 8);
     puts("Priv:");
     printf_chunk(ike_ctx.privkey_i, 8);
+    return 0;
+}
+
+static int _get_secrets(void)
+{
+    ike_ctx.shared_secret = malloc_chunk(ike_ctx.pubkey_i.len);
+    word32 len;
+    if (wc_DhAgree(&ike_ctx.wc_priv_key, (u_char *)ike_ctx.shared_secret.ptr, &len,
+                   (u_char *)ike_ctx.privkey_i.ptr, ike_ctx.privkey_i.len,
+                   (u_char *)ike_ctx.pubkey_r.ptr, ike_ctx.pubkey_r.len) != 0)
+    {
+        puts("Getting shared secret failed");
+        return -1;
+    }
+    ike_ctx.shared_secret.len = len;
+    puts("Shared secret:");
+    printf_chunk(ike_ctx.shared_secret, 8);
+    chunk_t nonce_concat = malloc_chunk(ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len);
+    memcpy(nonce_concat.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
+    memcpy(nonce_concat.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
+    if (_prf(nonce_concat, ike_ctx.shared_secret, &ike_ctx.skeyseed) != 0)
+    {
+        puts("Computing SKEYSEED failed");
+        free_chunk(&nonce_concat);
+        return -1;
+    }
+    free_chunk(&nonce_concat);
+    puts("SKEYSEED:");
+    printf_chunk(ike_ctx.skeyseed, 8);
+    return 0;
+}
+
+int _prf(chunk_t key, chunk_t seed, chunk_t *out)
+{
+    Hmac hmac;
+    if (wc_HmacInit(&hmac, NULL, INVALID_DEVID) != 0)
+        return -1;
+    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (u_char *)key.ptr, key.len) != 0)
+        return -1;
+    if (wc_HmacUpdate(&hmac, (u_char *)seed.ptr, seed.len) != 0)
+        return -1;
+    *out = malloc_chunk(HASH_SIZE_SHA1);
+    if (wc_HmacFinal(&hmac, (u_char *)out->ptr) != 0)
+    {
+        free_chunk(out);
+        return -1;
+    }
+    wc_HmacFree(&hmac);
     return 0;
 }
