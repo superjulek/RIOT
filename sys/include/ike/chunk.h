@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 typedef struct {
@@ -38,7 +39,7 @@ void free_chunk(chunk_t *chunk);
 
 chunk_t malloc_chunk(size_t size);
 
-void printf_chunk(chunk_t chunk);
+void printf_chunk(chunk_t chunk, uint8_t width);
 
 extern chunk_t empty_chunk;
 
