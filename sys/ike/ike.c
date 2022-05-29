@@ -40,8 +40,6 @@
 
 #define IKE_NONCE_I_LEN 32
 #define MSG_BUF_LEN 1280
-#define HASH_SIZE_SHA1 20
-#define KEY_SIZE_SHA1 20
 
 typedef struct
 {
@@ -79,6 +77,7 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
 static int _init_context(void);
 static int _reset_context(void);
 static int _build_init_i(char *msg, size_t *msg_len);
+static int _build_auth_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
 static int _generate_key(void);
 static int _get_secrets(void);
@@ -96,6 +95,10 @@ static inline uint32_t untoh32(void *network)
 
 int ike_init(char *addr_str)
 {
+    size_t len;
+    char data_out[MSG_BUF_LEN];
+    char data_in[MSG_BUF_LEN];
+    uint32_t timeout = 5;
     if (ike_ctx.state != IKE_STATE_OFF)
     {
         if (_reset_context() < 0)
@@ -109,9 +112,6 @@ int ike_init(char *addr_str)
         puts("Initiating IKE context failed");
         return -1;
     }
-    size_t len;
-    char data_out[MSG_BUF_LEN];
-    char data_in[MSG_BUF_LEN];
     if (_build_init_i(data_out, &len) < 0)
     {
         puts("Building IKE INIT message failed");
@@ -122,7 +122,6 @@ int ike_init(char *addr_str)
         puts("Sending IKE INIT message failed");
         return -1;
     }
-    uint32_t timeout = 5;
     if (_receive_data(addr_str, data_in, &len, timeout) < 0)
     {
         puts("Receiving IKE INIT message failed");
@@ -134,6 +133,27 @@ int ike_init(char *addr_str)
         puts("Parsing IKE INIT message failed");
         return -1;
     }
+    if (_build_auth_i(data_out, &len) < 0)
+    {
+        puts("Building IKE AUTH message failed");
+        return -1;
+    }
+    if (_send_data(addr_str, data_out, len) < 0)
+    {
+        puts("Sending IKE AUTH message failed");
+        return -1;
+    }
+    if (_receive_data(addr_str, data_in, &len, timeout) < 0)
+    {
+        puts("Receiving IKE AUTH message failed");
+        // TODO: retry
+        return -1;
+    }
+    // if (_parse_init_r(data_in, len) < 0)
+    //{
+    //     puts("Parsing IKE INIT message failed");
+    //     return -1;
+    // }
 
     return 0;
 }
@@ -406,7 +426,7 @@ static int _build_init_i(char *msg, size_t *msg_len)
         .mjver_mnver = IKE_V2_MJVER | IKE_V2_MNVER,
         .exchange_type = IKE_ET_IKE_SA_INIT,
         .flags = IKE_INITIATOR_FLAG,
-        .message_id = 0,
+        .message_id = htonl(0),
         .length = 0,
     };
     cur_len += sizeof(hdr);
@@ -424,7 +444,7 @@ static int _build_init_i(char *msg, size_t *msg_len)
         return error;
     cur_len += new_len;
 
-    /* Construct Nonce payload */
+    /* Construct Key Exchange payload */
     error = build_key_exchange_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD, ike_ctx.ike_dh, ike_ctx.pubkey_i);
     if (error < 0)
         return error;
@@ -504,6 +524,79 @@ static int _parse_init_r(char *msg, size_t msg_len)
     return 0;
 }
 
+static int _build_auth_i(char *msg, size_t *msg_len)
+{
+    size_t cur_len = 0;
+    size_t new_len;
+    int error;
+
+    /* Construct IKE header */
+    ike_header_t hdr = {
+        .ike_sa_spi_i = htonll(ike_ctx.ike_spi_i),
+        .ike_sa_spi_r = htonll(ike_ctx.ike_spi_r),
+        .next_payload = IKE_PT_ENCRYPTED_AND_AUTHENTICATED,
+        .mjver_mnver = IKE_V2_MJVER | IKE_V2_MNVER,
+        .exchange_type = IKE_ET_IKE_AUTH,
+        .flags = IKE_INITIATOR_FLAG,
+        .message_id = htonl(1),
+    };
+    memcpy(msg, &hdr, sizeof(hdr));
+    cur_len += sizeof(hdr);
+
+    /* TMP: Construct Nonce payload */
+    char tmp[] = {
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+    };
+    error = build_nonce_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD, (chunk_t){.len = 32, .ptr = tmp});
+    if (error < 0)
+        return error;
+    cur_len += new_len;
+
+    /* Construct Encrypted payload */
+    chunk_t enc_in = {
+        .ptr = msg + sizeof(hdr),
+        .len = cur_len - sizeof(hdr),
+    };
+    error = build_encrypted_payload(msg + sizeof(hdr), MSG_BUF_LEN - sizeof(hdr), &new_len, IKE_PT_NONCE, enc_in, ike_ctx.sk_ei, ike_ctx.sk_ai);
+    if (error < 0)
+        return error;
+
+    *msg_len = sizeof(hdr) + new_len;
+    puts("MSG");
+    od_hex_dump(msg, *msg_len, 4);
+    return 0;
+}
 static int _generate_key(void)
 {
     const u_char p[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34,
