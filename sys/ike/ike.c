@@ -40,7 +40,9 @@
 
 #define IKE_NONCE_I_LEN 32
 #define MSG_BUF_LEN 1280
+
 #define ID_I "sun.strongswan.org"
+#define PSK "This is a strong password"
 
 typedef struct
 {
@@ -76,6 +78,8 @@ typedef struct
     chunk_t sk_pi;
     chunk_t sk_pr;
     chunk_t id_i;
+    chunk_t psk;
+    chunk_t real_message_1;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -89,6 +93,7 @@ static int _build_auth_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
 static int _generate_key(void);
 static int _get_secrets(void);
+static int _get_auth(chunk_t input, chunk_t *auth_data);
 static int _prf(chunk_t key, chunk_t seed, chunk_t *out);
 static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out);
 
@@ -387,6 +392,8 @@ static int _reset_context(void)
     free_chunk(&ike_ctx.sk_pi);
     free_chunk(&ike_ctx.sk_pr);
     free_chunk(&ike_ctx.id_i);
+    free_chunk(&ike_ctx.psk);
+    free_chunk(&ike_ctx.real_message_1);
     wc_FreeDhKey(&ike_ctx.wc_priv_key);
     wc_FreeRng(&ike_ctx.wc_rng);
 
@@ -413,6 +420,9 @@ static int _init_context(void)
     chunk_t id_i = malloc_chunk(strlen(ID_I));
     memcpy(id_i.ptr, ID_I, id_i.len);
 
+    chunk_t psk = malloc_chunk(strlen(PSK));
+    memcpy(psk.ptr, PSK, psk.len);
+
     _ike_ctx_t new_ike_ctx = {
         .ike_spi_i = ike_spi_i,
         .child_spi_i = child_spi_i,
@@ -428,6 +438,7 @@ static int _init_context(void)
         .ike_dh = IKE_TRANSFORM_MODP2048,
         .ike_esn = IKE_TRANSFORM_ESN_OFF,
         .id_i = id_i,
+        .psk = psk,
     };
     ike_ctx = new_ike_ctx;
     _generate_key(); // TODO: check fail
@@ -476,6 +487,9 @@ static int _build_init_i(char *msg, size_t *msg_len)
     hdr.length = htonl(cur_len);
     memcpy(msg, &hdr, sizeof(hdr));
     *msg_len = cur_len;
+
+    ike_ctx.real_message_1 = malloc_chunk(cur_len);
+    memcpy(ike_ctx.real_message_1.ptr, msg, ike_ctx.real_message_1.len);
 
     return 0;
 }
@@ -566,14 +580,51 @@ static int _build_auth_i(char *msg, size_t *msg_len)
     cur_len += sizeof(hdr);
 
     /* Construct Identification payload */
-    error = build_identification_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_SECURITY_ASSOCIATION, IKE_ID_TYPE_FQDN, ike_ctx.id_i);
+    error = build_identification_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_AUTHENTICATION, IKE_ID_TYPE_FQDN, ike_ctx.id_i);
+    if (error < 0)
+        return error;
+    cur_len += new_len;
+
+    /* Construct Authentication payload */
+    chunk_t authed_data;
+    chunk_t auth_data = malloc_chunk(ike_ctx.real_message_1.len + ike_ctx.ike_nonce_r.len + HASH_SIZE_SHA1);
+    memcpy(auth_data.ptr, ike_ctx.real_message_1.ptr, ike_ctx.real_message_1.len);
+    memcpy(auth_data.ptr + ike_ctx.real_message_1.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
+    chunk_t idx = {.len = new_len - sizeof(ike_generic_payload_header_t), .ptr = msg + cur_len - new_len + sizeof(ike_generic_payload_header_t)};
+    chunk_t maced_id;
+    error = _prf(ike_ctx.sk_pi, idx, &maced_id);
+    if (error < 0)
+    {
+        free_chunk(&auth_data);
+        return error;
+    }
+    memcpy(auth_data.ptr + ike_ctx.real_message_1.len + ike_ctx.ike_nonce_r.len, maced_id.ptr, maced_id.len);
+    free_chunk(&maced_id);
+    error = _get_auth(auth_data, &authed_data);
+    free_chunk(&auth_data);
+    if (error < 0)
+        return error;
+    error = build_auth_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_SECURITY_ASSOCIATION, IKE_AUTH_METHOD_PSK, authed_data);
+    free_chunk(&authed_data);
     if (error < 0)
         return error;
     cur_len += new_len;
 
     /* Construct SA payload */
     uint32_t n_spi = htonl(ike_ctx.child_spi_i);
-    error = build_sa_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD, IKE_PROTO_ESP, ike_ctx.child_encr, 0, ike_ctx.child_integ, 0, IKE_TRANSFORM_ESN_OFF, ike_ctx.child_key_size, (chunk_t){.ptr = (char *)&n_spi, .len = sizeof(n_spi)});
+    error = build_sa_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_TRAFFIC_SELECTOR_I, IKE_PROTO_ESP, ike_ctx.child_encr, 0, ike_ctx.child_integ, 0, IKE_TRANSFORM_ESN_OFF, ike_ctx.child_key_size, (chunk_t){.ptr = (char *)&n_spi, .len = sizeof(n_spi)});
+    if (error < 0)
+        return error;
+    cur_len += new_len;
+
+    /* Construct TSi payload */
+    error = build_ts_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_TRAFFIC_SELECTOR_R);
+    if (error < 0)
+        return error;
+    cur_len += new_len;
+
+    /* Construct TSi payload */
+    error = build_ts_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD);
     if (error < 0)
         return error;
     cur_len += new_len;
@@ -589,8 +640,6 @@ static int _build_auth_i(char *msg, size_t *msg_len)
         return error;
 
     *msg_len = sizeof(hdr) + new_len;
-    puts("MSG");
-    od_hex_dump(msg, *msg_len, 4);
     return 0;
 }
 static int _generate_key(void)
@@ -725,6 +774,23 @@ static int _get_secrets(void)
     return 0;
 }
 
+static int _get_auth(chunk_t input, chunk_t *auth_data)
+{
+    chunk_t inner_key;
+    char pad_text[] = "Key Pad for IKEv2";
+    chunk_t textc = {.ptr = pad_text, .len = strlen(pad_text)};
+
+    if (_prf(ike_ctx.psk, textc, &inner_key) != 0)
+    {
+        return -1;
+    }
+    if (_prf(inner_key, input, auth_data) != 0)
+    {
+        free_chunk(&inner_key);
+        return -1;
+    }
+    return 0;
+}
 static int _prf(chunk_t key, chunk_t seed, chunk_t *out)
 {
     Hmac hmac;
