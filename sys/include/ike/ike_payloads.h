@@ -43,6 +43,8 @@ extern "C"
 
     int process_nonce_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, chunk_t *nonce);
 
+    int build_identification_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_id_type_t id_type, chunk_t id);
+
     int build_key_exchange_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_transform_dh_t dh, chunk_t key_data);
 
     int process_key_exchange_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_transform_dh_t *dh, chunk_t *key_data);

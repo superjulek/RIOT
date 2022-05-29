@@ -60,6 +60,14 @@ typedef enum {
 } ike_payload_type_t;
 
 typedef enum {
+    IKE_ID_TYPE_IPV4_ADDR = 1,
+    IKE_ID_TYPE_FQDN = 2,
+    IKE_ID_TYPE_RFC822_ADDR = 3,
+    IKE_ID_TYPE_IPV6_ADDR = 5,
+    IKE_ID_TYPE_KEY_ID = 11,
+} ike_id_type_t;
+
+typedef enum {
     IKE_PROTO_IKE = 1,
     IKE_PROTO_AH = 2,
     IKE_PROTO_ESP = 3,

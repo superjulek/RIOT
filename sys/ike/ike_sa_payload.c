@@ -56,7 +56,9 @@ int build_sa_payload(char *start, size_t max_len, size_t *new_len, ike_payload_t
         case (IKE_PROTO_AH):
             //break;
         case (IKE_PROTO_ESP):
-            //break;
+            build_enc = 1;
+            build_integ = 2;
+            break;
         default:
             return -EINVAL;
     }
@@ -181,7 +183,7 @@ int build_sa_payload(char *start, size_t max_len, size_t *new_len, ike_payload_t
         .payload_length = htons(*new_len),
     };
     ike_proposal_substructure_const_t ph = {
-        .proposal_length = htons(proposal_len + sizeof(ike_proposal_substructure_const_t)),
+        .proposal_length = htons(proposal_len + sizeof(ike_proposal_substructure_const_t) + spi.len),
         .proposal_num = 1,
         .protocol_id = protocol,
         . spi_size = spi.len,
