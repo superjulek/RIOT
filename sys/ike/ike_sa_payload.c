@@ -57,7 +57,8 @@ int build_sa_payload(char *start, size_t max_len, size_t *new_len, ike_payload_t
             //break;
         case (IKE_PROTO_ESP):
             build_enc = 1;
-            build_integ = 2;
+            build_integ = 1;
+            build_esn = 2;
             break;
         default:
             return -EINVAL;

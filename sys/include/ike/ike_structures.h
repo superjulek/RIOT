@@ -68,6 +68,12 @@ typedef enum {
 } ike_id_type_t;
 
 typedef enum {
+    IKE_AUTH_METHOD_RSA = 1,
+    IKE_AUTH_METHOD_PSK = 2,
+    IKE_AUTH_METHOD_DSS = 3,
+} ike_auth_method_t;
+
+typedef enum {
     IKE_PROTO_IKE = 1,
     IKE_PROTO_AH = 2,
     IKE_PROTO_ESP = 3,
