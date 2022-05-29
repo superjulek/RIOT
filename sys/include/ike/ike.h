@@ -22,21 +22,27 @@
 #define IKE_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-typedef enum {
-    IKE_STATE_OFF = 0,
-    IKE_STATE_NEGOTIATION = 1,
-    IKE_STATE_ESTABLISHED = 2,
-} ike_state_t;
+#define HASH_SIZE_SHA1 20
+#define HMAC_SIZE_SHA1_96 12
+#define KEY_SIZE_SHA1 20
 
-int ike_init(char *addr_str);
+    typedef enum
+    {
+        IKE_STATE_OFF = 0,
+        IKE_STATE_NEGOTIATION = 1,
+        IKE_STATE_ESTABLISHED = 2,
+    } ike_state_t;
 
-/**
- * @brief IKE.
- */
-void ikectrl(int argc, char **argv);
+    int ike_init(char *addr_str);
+
+    /**
+     * @brief IKE.
+     */
+    void ikectrl(int argc, char **argv);
 
 #ifdef __cplusplus
 }
