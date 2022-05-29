@@ -40,12 +40,15 @@
 
 #define IKE_NONCE_I_LEN 32
 #define MSG_BUF_LEN 1280
+#define ID_I "sun.strongswan.org"
 
 typedef struct
 {
     ike_state_t state;
     uint64_t ike_spi_i;
     uint64_t ike_spi_r;
+    uint32_t child_spi_i;
+    uint32_t child_spi_r;
     chunk_t ike_nonce_i;
     chunk_t ike_nonce_r;
     ike_transform_encr_t ike_encr;
@@ -54,6 +57,10 @@ typedef struct
     ike_transform_integ_t ike_integ;
     ike_transform_dh_t ike_dh;
     ike_transform_esn_t ike_esn;
+    ike_transform_encr_t child_encr;
+    size_t child_key_size;
+    ike_transform_integ_t child_integ;
+    ike_transform_esn_t child_esn;
     DhKey wc_priv_key;
     WC_RNG wc_rng;
     chunk_t pubkey_i;
@@ -68,6 +75,7 @@ typedef struct
     chunk_t sk_er;
     chunk_t sk_pi;
     chunk_t sk_pr;
+    chunk_t id_i;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -364,6 +372,8 @@ static int _reset_context(void)
     ike_ctx.state = IKE_STATE_OFF;
     ike_ctx.ike_spi_i = 0;
     ike_ctx.ike_spi_r = 0;
+    ike_ctx.child_spi_i = 0;
+    ike_ctx.child_spi_r = 0;
     free_chunk(&ike_ctx.ike_nonce_i);
     free_chunk(&ike_ctx.privkey_i);
     free_chunk(&ike_ctx.pubkey_i);
@@ -376,6 +386,7 @@ static int _reset_context(void)
     free_chunk(&ike_ctx.sk_er);
     free_chunk(&ike_ctx.sk_pi);
     free_chunk(&ike_ctx.sk_pr);
+    free_chunk(&ike_ctx.id_i);
     wc_FreeDhKey(&ike_ctx.wc_priv_key);
     wc_FreeRng(&ike_ctx.wc_rng);
 
@@ -387,25 +398,36 @@ static int _init_context(void)
     puts("Initiating IKE context");
 
     /* Generate random values */
-    uint64_t spi_i;
-    random_bytes((uint8_t *)&spi_i, sizeof(uint64_t));
-    printf("New IKE initiator SPI: 0x%llX\n", spi_i);
+    uint64_t ike_spi_i;
+    uint32_t child_spi_i;
+    random_bytes((uint8_t *)&ike_spi_i, sizeof(uint64_t));
+    printf("New IKE initiator SPI: 0x%llX\n", ike_spi_i);
+    random_bytes((uint8_t *)&child_spi_i, sizeof(uint32_t));
+    printf("New IKE initiator SPI: 0x%X\n", child_spi_i);
 
     chunk_t ike_nonce_i = malloc_chunk(IKE_NONCE_I_LEN);
     random_bytes((uint8_t *)ike_nonce_i.ptr, ike_nonce_i.len);
     printf("New IKE initiatior Nonce:");
     printf_chunk(ike_nonce_i, 8);
 
+    chunk_t id_i = malloc_chunk(strlen(ID_I));
+    memcpy(id_i.ptr, ID_I, id_i.len);
+
     _ike_ctx_t new_ike_ctx = {
-        .ike_spi_i = spi_i,
+        .ike_spi_i = ike_spi_i,
+        .child_spi_i = child_spi_i,
         .state = IKE_STATE_NEGOTIATION,
         .ike_nonce_i = ike_nonce_i,
         .ike_encr = IKE_TRANSFORM_ENCR_AES_CBC,
         .ike_key_size = 128,
         .ike_prf = IKE_TRANSFORM_PRF_HMAC_SHA1,
         .ike_integ = IKE_TRANSFORM_AUTH_HMAC_SHA1_96,
+        .child_encr = IKE_TRANSFORM_ENCR_AES_CBC,
+        .child_key_size = 128,
+        .child_integ = IKE_TRANSFORM_AUTH_HMAC_SHA1_96,
         .ike_dh = IKE_TRANSFORM_MODP2048,
         .ike_esn = IKE_TRANSFORM_ESN_OFF,
+        .id_i = id_i,
     };
     ike_ctx = new_ike_ctx;
     _generate_key(); // TODO: check fail
@@ -543,42 +565,15 @@ static int _build_auth_i(char *msg, size_t *msg_len)
     memcpy(msg, &hdr, sizeof(hdr));
     cur_len += sizeof(hdr);
 
-    /* TMP: Construct Nonce payload */
-    char tmp[] = {
-        0x01,
-        0x02,
-        0x03,
-        0x04,
-        0x05,
-        0x06,
-        0x07,
-        0x08,
-        0x01,
-        0x02,
-        0x03,
-        0x04,
-        0x05,
-        0x06,
-        0x07,
-        0x08,
-        0x01,
-        0x02,
-        0x03,
-        0x04,
-        0x05,
-        0x06,
-        0x07,
-        0x08,
-        0x01,
-        0x02,
-        0x03,
-        0x04,
-        0x05,
-        0x06,
-        0x07,
-        0x08,
-    };
-    error = build_nonce_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD, (chunk_t){.len = 32, .ptr = tmp});
+    /* Construct Identification payload */
+    error = build_identification_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_SECURITY_ASSOCIATION, IKE_ID_TYPE_FQDN, ike_ctx.id_i);
+    if (error < 0)
+        return error;
+    cur_len += new_len;
+
+    /* Construct SA payload */
+    uint32_t n_spi = htonl(ike_ctx.child_spi_i);
+    error = build_sa_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD, IKE_PROTO_ESP, ike_ctx.child_encr, 0, ike_ctx.child_integ, 0, IKE_TRANSFORM_ESN_OFF, ike_ctx.child_key_size, (chunk_t){.ptr = (char *)&n_spi, .len = sizeof(n_spi)});
     if (error < 0)
         return error;
     cur_len += new_len;
@@ -588,7 +583,8 @@ static int _build_auth_i(char *msg, size_t *msg_len)
         .ptr = msg + sizeof(hdr),
         .len = cur_len - sizeof(hdr),
     };
-    error = build_encrypted_payload(msg + sizeof(hdr), MSG_BUF_LEN - sizeof(hdr), &new_len, IKE_PT_NONCE, enc_in, ike_ctx.sk_ei, ike_ctx.sk_ai);
+    error = build_encrypted_payload(msg + sizeof(hdr), MSG_BUF_LEN - sizeof(hdr), &new_len, IKE_PT_IDENTIFICATION_I,
+                                    enc_in, ike_ctx.sk_ei, ike_ctx.sk_ai);
     if (error < 0)
         return error;
 
