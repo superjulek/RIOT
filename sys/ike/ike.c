@@ -41,6 +41,7 @@
 #define IKE_NONCE_I_LEN 32
 #define MSG_BUF_LEN 1280
 #define HASH_SIZE_SHA1 20
+#define KEY_SIZE_SHA1 20
 
 typedef struct
 {
@@ -62,6 +63,13 @@ typedef struct
     chunk_t pubkey_r;
     chunk_t shared_secret;
     chunk_t skeyseed;
+    chunk_t sk_d;
+    chunk_t sk_ai;
+    chunk_t sk_ar;
+    chunk_t sk_ei;
+    chunk_t sk_er;
+    chunk_t sk_pi;
+    chunk_t sk_pr;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -341,6 +349,13 @@ static int _reset_context(void)
     free_chunk(&ike_ctx.pubkey_i);
     free_chunk(&ike_ctx.shared_secret);
     free_chunk(&ike_ctx.skeyseed);
+    free_chunk(&ike_ctx.sk_d);
+    free_chunk(&ike_ctx.sk_ai);
+    free_chunk(&ike_ctx.sk_ar);
+    free_chunk(&ike_ctx.sk_ei);
+    free_chunk(&ike_ctx.sk_er);
+    free_chunk(&ike_ctx.sk_pi);
+    free_chunk(&ike_ctx.sk_pr);
     wc_FreeDhKey(&ike_ctx.wc_priv_key);
     wc_FreeRng(&ike_ctx.wc_rng);
 
@@ -566,7 +581,7 @@ static int _get_secrets(void)
     free_chunk(&nonce_concat);
     puts("SKEYSEED:");
     printf_chunk(ike_ctx.skeyseed, 8);
-    chunk_t tmp = empty_chunk;
+    chunk_t crypto_concat = empty_chunk;
     chunk_t ni_nr_spi_spr = malloc_chunk(ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len + sizeof(ike_ctx.ike_spi_i) + sizeof(ike_ctx.ike_spi_r));
     uint64_t n_ike_spi_i = htonll(ike_ctx.ike_spi_i);
     uint64_t n_ike_spi_r = htonll(ike_ctx.ike_spi_r);
@@ -574,16 +589,49 @@ static int _get_secrets(void)
     memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
     memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len, &n_ike_spi_i, sizeof(ike_ctx.ike_spi_i));
     memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len + sizeof(ike_ctx.ike_spi_i), &n_ike_spi_r, sizeof(ike_ctx.ike_spi_r));
-    if (_prf_plus(ike_ctx.skeyseed, ni_nr_spi_spr, 132, &tmp) != 0)
+
+    if (_prf_plus(ike_ctx.skeyseed, ni_nr_spi_spr, 5 * KEY_SIZE_SHA1 + 2 * (ike_ctx.ike_key_size / 8), &crypto_concat) != 0)
     {
         free_chunk(&ni_nr_spi_spr);
         return -1;
     }
+    ike_ctx.sk_d = malloc_chunk(KEY_SIZE_SHA1);
+    ike_ctx.sk_ai = malloc_chunk(KEY_SIZE_SHA1);
+    ike_ctx.sk_ar = malloc_chunk(KEY_SIZE_SHA1);
+    ike_ctx.sk_ei = malloc_chunk(ike_ctx.ike_key_size / 8);
+    ike_ctx.sk_er = malloc_chunk(ike_ctx.ike_key_size / 8);
+    ike_ctx.sk_pi = malloc_chunk(KEY_SIZE_SHA1);
+    ike_ctx.sk_pr = malloc_chunk(KEY_SIZE_SHA1);
+    chunk_t *parts[] = {
+        &ike_ctx.sk_d,
+        &ike_ctx.sk_ai,
+        &ike_ctx.sk_ar,
+        &ike_ctx.sk_ei,
+        &ike_ctx.sk_er,
+        &ike_ctx.sk_pi,
+        &ike_ctx.sk_pr,
+    };
+    const char *parts_names[] = {
+        "SK_d",
+        "SK_ai",
+        "SK_ar",
+        "SK_ei",
+        "SK_er",
+        "SK_pi",
+        "SK_pr",
+    };
+    char *p = crypto_concat.ptr;
+    for (u_int i = 0; i < sizeof(parts) / sizeof(*parts); ++i)
+    {
+        chunk_t *part = parts[i];
+        memcpy(part->ptr, p, part->len);
+        p += part->len;
+        puts(parts_names[i]);
+        printf_chunk(*part, 8);
+    }
 
-    puts("TMP MIX:");
-    printf_chunk(tmp, 4);
     free_chunk(&ni_nr_spi_spr);
-    free_chunk(&tmp);
+    free_chunk(&crypto_concat);
 
     return 0;
 }
