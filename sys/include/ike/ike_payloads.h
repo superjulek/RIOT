@@ -59,6 +59,8 @@ extern "C"
 
     int build_encrypted_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t first_payload, chunk_t enc_data, chunk_t ekey, chunk_t akey);
 
+    int process_encrypted_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, chunk_t *dec_data, chunk_t ekey, chunk_t akey);
+
 #ifdef __cplusplus
 }
 #endif

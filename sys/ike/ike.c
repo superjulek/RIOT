@@ -91,6 +91,7 @@ static int _reset_context(void);
 static int _build_init_i(char *msg, size_t *msg_len);
 static int _build_auth_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
+static int _parse_auth_r(char *msg, size_t msg_len);
 static int _generate_key(void);
 static int _get_secrets(void);
 static int _get_auth(chunk_t input, chunk_t *auth_data);
@@ -162,11 +163,11 @@ int ike_init(char *addr_str)
         // TODO: retry
         return -1;
     }
-    // if (_parse_init_r(data_in, len) < 0)
-    //{
-    //     puts("Parsing IKE INIT message failed");
-    //     return -1;
-    // }
+    if (_parse_auth_r(data_in, len) < 0)
+    {
+        puts("Parsing IKE AUTH message failed");
+        return -1;
+    }
 
     return 0;
 }
@@ -512,6 +513,11 @@ static int _parse_init_r(char *msg, size_t msg_len)
         puts("Message length mismatch");
         return -EMSGSIZE;
     }
+    if (ike_ctx.ike_spi_i != ntohll(ike_hdr->ike_sa_spi_i))
+    {
+        puts("SPI mismatch");
+        return -EPROTO;
+    }
     ike_ctx.ike_spi_r = ntohll(ike_hdr->ike_sa_spi_r);
     // TODO: more checks
     next_type = ike_hdr->next_payload;
@@ -640,6 +646,45 @@ static int _build_auth_i(char *msg, size_t *msg_len)
         return error;
 
     *msg_len = sizeof(hdr) + new_len;
+    return 0;
+}
+
+static int _parse_auth_r(char *msg, size_t msg_len)
+{
+    size_t remaining_len = msg_len;
+    char *p = msg;
+    ike_header_t *ike_hdr;
+    size_t cur_len;
+    ike_payload_type_t next_type;
+    chunk_t decrypted_msg;
+    int error;
+    if (msg_len < sizeof(ike_header_t))
+    {
+        puts("Message too short");
+        return -EMSGSIZE;
+    }
+    ike_hdr = (ike_header_t *)p;
+    if (ntohl(ike_hdr->length) != msg_len)
+    {
+        puts("Message length mismatch");
+        return -EMSGSIZE;
+    }
+    if (ike_ctx.ike_spi_r != ntohll(ike_hdr->ike_sa_spi_r) || ike_ctx.ike_spi_i != ntohll(ike_hdr->ike_sa_spi_i))
+    {
+        puts("SPI mismatch");
+        return -EPROTO;
+    }
+    // TODO: more checks
+    next_type = ike_hdr->next_payload;
+    remaining_len -= sizeof(ike_header_t);
+    p += sizeof(ike_header_t);
+    error = process_encrypted_payload(p, remaining_len, &cur_len, &next_type, &decrypted_msg, ike_ctx.sk_er, ike_ctx.sk_ar);
+    if (error)
+    {
+        puts("Payload decryption failed");
+        return -EBADMSG;
+    }
+    free_chunk(&decrypted_msg);
     return 0;
 }
 static int _generate_key(void)
