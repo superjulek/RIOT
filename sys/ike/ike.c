@@ -684,6 +684,8 @@ static int _parse_auth_r(char *msg, size_t msg_len)
         puts("Payload decryption failed");
         return -EBADMSG;
     }
+    puts("Decrypted data:");
+    printf_chunk(decrypted_msg, 8);
     free_chunk(&decrypted_msg);
     return 0;
 }

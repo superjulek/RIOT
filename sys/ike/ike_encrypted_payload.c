@@ -71,10 +71,23 @@ int build_encrypted_payload(char *start, size_t max_len, size_t *new_len, ike_pa
 
 int process_encrypted_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, chunk_t *dec_data, chunk_t ekey, chunk_t akey)
 {
-    (void) akey;
     int ret = process_generic_payload_header(start, max_len, cur_len, next_payload);
     if (ret < 0)
         return ret;
+    char icd[WC_SHA256_DIGEST_SIZE];
+    chunk_t auth_in = {
+        .ptr = start - sizeof(ike_header_t),
+        .len = sizeof(ike_header_t) + *cur_len - HMAC_SIZE_SHA1_96,
+    };
+    chunk_t auth_out = {
+        .ptr = icd,
+        .len = sizeof(icd),
+    };
+    if (_sign(auth_in, &auth_out, akey) || memcmp(auth_out.ptr, start + *cur_len - HMAC_SIZE_SHA1_96, HMAC_SIZE_SHA1_96))
+    {
+        puts("Failed to verify checksum");
+        return -1;
+    }
     chunk_t ivc = (chunk_t){.len = AES_BLOCK_SIZE, .ptr = start + sizeof(ike_generic_payload_header_t)};
     chunk_t dec_in = {
         .ptr = start + sizeof(ike_generic_payload_header_t) + AES_BLOCK_SIZE,
@@ -87,10 +100,15 @@ int process_encrypted_payload(char *start, size_t max_len, size_t *cur_len, ike_
         free_chunk(dec_data);
         return -1;
     }
-    puts("Decrypted data:");
-    printf_chunk(*dec_data, 8);
 
-    // uint8_t padding_len = *(start + *cur_len - HMAC_SIZE_SHA1_96 - 1);
+    uint8_t padding_len = *(dec_data->ptr + dec_data->len - 1);
+    if (padding_len > dec_data->len)
+    {
+        free_chunk(dec_data);
+        return -1;
+    }
+    dec_data->ptr = realloc(dec_data->ptr, dec_data->len - padding_len - 1);
+    dec_data->len -= padding_len + 1;
 
     return 0;
 }
