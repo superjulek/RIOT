@@ -80,6 +80,18 @@ typedef struct
     chunk_t id_i;
     chunk_t psk;
     chunk_t real_message_1;
+    struct {
+        ipv6_addr_t start;
+        ipv6_addr_t end;
+    } local_ts;
+    struct {
+        ipv6_addr_t start;
+        ipv6_addr_t end;
+    } remote_ts;
+    struct {
+        ike_id_type_t type;
+        chunk_t id;
+    } remote_id;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -92,6 +104,7 @@ static int _build_init_i(char *msg, size_t *msg_len);
 static int _build_auth_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
 static int _parse_auth_r(char *msg, size_t msg_len);
+static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t first_type);
 static int _generate_key(void);
 static int _get_secrets(void);
 static int _get_auth(chunk_t input, chunk_t *auth_data);
@@ -536,6 +549,16 @@ static int _parse_init_r(char *msg, size_t msg_len)
             printf("Parsed nonce payload of size %u\n", cur_len);
             printf_chunk(ike_ctx.ike_nonce_r, 4);
             break;
+        case IKE_PT_SECURITY_ASSOCIATION:
+            if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL, 
+                NULL, NULL, NULL, NULL, NULL) < 0)
+            {
+                puts("Nonce payload parsing failed");
+                return -1;
+            }
+            printf("Parsed nonce payload of size %u\n", cur_len);
+            printf_chunk(ike_ctx.ike_nonce_r, 4);
+            break;
         case IKE_PT_KEY_EXCHANGE:
         {
         }
@@ -629,7 +652,7 @@ static int _build_auth_i(char *msg, size_t *msg_len)
         return error;
     cur_len += new_len;
 
-    /* Construct TSi payload */
+    /* Construct TSr payload */
     error = build_ts_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NO_NEXT_PAYLOAD);
     if (error < 0)
         return error;
@@ -686,9 +709,92 @@ static int _parse_auth_r(char *msg, size_t msg_len)
     }
     puts("Decrypted data:");
     printf_chunk(decrypted_msg, 8);
+    if (_parse_auth_r_decrypted(decrypted_msg.ptr, decrypted_msg.len, next_type))
+    {
+        puts("Parsing decrypted content failed");
+        return -EBADMSG;
+    }
     free_chunk(&decrypted_msg);
     return 0;
 }
+
+static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t first_type)
+{
+    ike_payload_type_t next_type = first_type;
+    size_t remaining_len = msg_len;
+    char *p = msg;
+    size_t cur_len;
+
+    while (remaining_len > 0)
+    {
+        switch (next_type)
+        {
+            case IKE_PT_SECURITY_ASSOCIATION:
+                if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL) < 0)
+                {
+                    puts("SA payload parsing failed");
+                    return -1;
+                }
+                break;
+            case IKE_PT_IDENTIFICATION_R:
+                if (process_identification_payload(p, remaining_len, &cur_len, &next_type, &ike_ctx.remote_id.type, &ike_ctx.remote_id.id) < 0)
+                {
+                    puts("ID payload parsing failed");
+                    return -1;
+                }
+                printf("Received ID (%d):\n", ike_ctx.remote_id.type);
+                printf_chunk(ike_ctx.remote_id.id, 8);
+                printf("%.*s\n", ike_ctx.remote_id.id.len, ike_ctx.remote_id.id.ptr);
+                break;
+            /**
+            case IKE_PT_AUTHENTICATION:
+                if (process_auth_payload(p, remaining_len, &cur_len, &next_type, ...) < 0)
+                {
+                    puts("AUTH payload parsing failed");
+                    return -1;
+                }
+                break;
+            */
+            case IKE_PT_TRAFFIC_SELECTOR_I:
+                if (process_ts_payload(p, remaining_len, &cur_len, &next_type, &ike_ctx.local_ts.start, &ike_ctx.local_ts.end) < 0)
+                {
+                    puts("TSi payload parsing failed");
+                    return -1;
+                }
+                puts("Received TSi");
+                puts("From:");
+                od_hex_dump(&ike_ctx.local_ts.start, 16, 16);
+                puts("To:");
+                od_hex_dump(&ike_ctx.local_ts.end, 16, 16);
+                break;
+            case IKE_PT_TRAFFIC_SELECTOR_R:
+                if (process_ts_payload(p, remaining_len, &cur_len, &next_type, &ike_ctx.remote_ts.start, &ike_ctx.remote_ts.end) < 0)
+                {
+                    puts("TSr payload parsing failed");
+                    return -1;
+                }
+                puts("Received TSi");
+                puts("From:");
+                od_hex_dump(&ike_ctx.remote_ts.start, 16, 16);
+                puts("To:");
+                od_hex_dump(&ike_ctx.remote_ts.end, 16, 16);
+                break;
+            default:
+                if (process_unknown_payload(p, remaining_len, &cur_len, &next_type) < 0)
+                {
+                    puts("Unknown payload parsing failed");
+                    return -1;
+                }
+                printf("Parsed unknown payload of size %u\n", cur_len);
+            }
+        remaining_len -= cur_len;
+        p += cur_len;
+    }
+    // verify
+    return 0;
+}
+
 static int _generate_key(void)
 {
     const u_char p[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34,

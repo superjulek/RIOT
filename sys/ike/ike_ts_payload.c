@@ -45,7 +45,7 @@ int build_ts_payload(char *start, size_t max_len, size_t *new_len, ike_payload_t
     ike_ts_structure_const_t ts = {
         .ts_type = TS_IPV6_ADDR_RANGE,
         .ip_proto_id = 0,
-        .length = sizeof(ike_ts_payload_const_t),
+        .length = htons(sizeof(ike_ts_structure_const_t)),
         .start_port = 0,
         .end_port = 0xFFFF,
         .start_address = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
@@ -56,5 +56,32 @@ int build_ts_payload(char *start, size_t max_len, size_t *new_len, ike_payload_t
     memcpy(start + sizeof(h) + sizeof(ph), &ts, sizeof(ts));
     *new_len = len;
 
+    return 0;
+}
+
+int process_ts_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ipv6_addr_t *ts_start, ipv6_addr_t *ts_end)
+{
+    int ret = process_generic_payload_header(start, max_len, cur_len, next_payload);
+    if (ret < 0)
+        return ret;
+    ike_ts_payload_const_t *ph;
+    ike_ts_structure_const_t *ts;
+
+    if (*cur_len != sizeof(ike_generic_payload_header_t) + sizeof(ike_ts_payload_const_t) + sizeof(ike_ts_structure_const_t))
+    {
+        return -ENOMEM;
+    }
+    ph = (ike_ts_payload_const_t*) (start + sizeof(ike_generic_payload_header_t));
+    if (ph->ts_num != 1)
+    {
+        return -1;
+    }
+    ts = (ike_ts_structure_const_t*) (start + sizeof(ike_generic_payload_header_t) + sizeof(ike_ts_payload_const_t));
+    if (ntohs(ts->length) != sizeof(ike_ts_structure_const_t))
+    {
+        return -1;
+    }
+    *ts_start = *(ipv6_addr_t*) ts->start_address;
+    *ts_end = *(ipv6_addr_t*) ts->end_address;
     return 0;
 }
