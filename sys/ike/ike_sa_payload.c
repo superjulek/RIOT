@@ -201,10 +201,6 @@ int process_sa_payload(char *start, size_t max_len, size_t *cur_len, ike_payload
     ike_transform_encr_t *encr, ike_transform_prf_t *prf, ike_transform_integ_t *integ,
     ike_transform_dh_t *dh, ike_transform_esn_t *esn, size_t *key_size, chunk_t *spi)
 {
-    (void)start; /* Unused parameter */
-    (void)max_len; /* Unused parameter */
-    (void)cur_len; /* Unused parameter */
-    (void)next_payload; /* Unused parameter */
     (void)protocol; /* Unused parameter */
     (void)encr; /* Unused parameter */
     (void)prf; /* Unused parameter */
@@ -213,5 +209,10 @@ int process_sa_payload(char *start, size_t max_len, size_t *cur_len, ike_payload
     (void)esn; /* Unused parameter */
     (void)key_size; /* Unused parameter */
     (void)spi; /* Unused parameter */
+
+    int ret = process_generic_payload_header(start, max_len, cur_len, next_payload);
+    if (ret < 0)
+        return ret;
+        // TODO
     return 0;
 }

@@ -29,6 +29,8 @@ extern "C"
 #include "ike_structures.h"
 #include "chunk.h"
 
+#include "net/gnrc/ipv6.h"
+
 #include "stddef.h"
 
     int build_sa_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_protocol_id_t protocol,
@@ -45,13 +47,17 @@ extern "C"
 
     int build_identification_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_id_type_t id_type, chunk_t id);
 
+    int process_identification_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_id_type_t *id_type, chunk_t *id);
+
     int build_auth_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_auth_method_t auth_method, chunk_t auth_data);
 
     int build_key_exchange_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_transform_dh_t dh, chunk_t key_data);
 
+    int process_key_exchange_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_transform_dh_t *dh, chunk_t *key_data);
+
     int build_ts_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload);
 
-    int process_key_exchange_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_transform_dh_t *dh, chunk_t *key_data);
+    int process_ts_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t *next_payload, ipv6_addr_t *ts_start, ipv6_addr_t *ts_end);
 
     int process_generic_payload_header(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload);
 
