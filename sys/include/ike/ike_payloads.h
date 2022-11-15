@@ -51,6 +51,8 @@ extern "C"
 
     int build_auth_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_auth_method_t auth_method, chunk_t auth_data);
 
+    int process_auth_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_auth_method_t *auth_method, chunk_t *auth_data);
+
     int build_key_exchange_payload(char *start, size_t max_len, size_t *new_len, ike_payload_type_t next_payload, ike_transform_dh_t dh, chunk_t key_data);
 
     int process_key_exchange_payload(char *start, size_t max_len, size_t *cur_len, ike_payload_type_t *next_payload, ike_transform_dh_t *dh, chunk_t *key_data);
