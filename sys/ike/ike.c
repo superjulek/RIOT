@@ -80,6 +80,7 @@ typedef struct
     chunk_t id_i;
     chunk_t psk;
     chunk_t real_message_1;
+    chunk_t real_message_2;
     struct {
         ipv6_addr_t start;
         ipv6_addr_t end;
@@ -181,6 +182,7 @@ int ike_init(char *addr_str)
         puts("Parsing IKE AUTH message failed");
         return -1;
     }
+    puts("Tunnel established");
 
     return 0;
 }
@@ -408,6 +410,8 @@ static int _reset_context(void)
     free_chunk(&ike_ctx.id_i);
     free_chunk(&ike_ctx.psk);
     free_chunk(&ike_ctx.real_message_1);
+    free_chunk(&ike_ctx.real_message_2);
+    free_chunk(&ike_ctx.remote_id.id);
     wc_FreeDhKey(&ike_ctx.wc_priv_key);
     wc_FreeRng(&ike_ctx.wc_rng);
 
@@ -586,6 +590,8 @@ static int _parse_init_r(char *msg, size_t msg_len)
     {
         puts("Getting secrets failed");
     }
+    ike_ctx.real_message_2 = malloc_chunk(msg_len);
+    memcpy(ike_ctx.real_message_2.ptr, msg, msg_len);
     return 0;
 }
 
@@ -724,6 +730,9 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     size_t remaining_len = msg_len;
     char *p = msg;
     size_t cur_len;
+    chunk_t idx = empty_chunk;
+    chunk_t auth_data_recv = {.len = HASH_SIZE_SHA1};
+    auth_data_recv.ptr = alloca(auth_data_recv.len);
 
     while (remaining_len > 0)
     {
@@ -743,19 +752,27 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
                     puts("ID payload parsing failed");
                     return -1;
                 }
+                idx.len = cur_len - sizeof(ike_generic_payload_header_t);
+                idx.ptr = alloca(idx.len);
+                memcpy(idx.ptr, p + sizeof(ike_generic_payload_header_t), idx.len);
                 printf("Received ID (%d):\n", ike_ctx.remote_id.type);
                 printf_chunk(ike_ctx.remote_id.id, 8);
                 printf("%.*s\n", ike_ctx.remote_id.id.len, ike_ctx.remote_id.id.ptr);
                 break;
-            /**
             case IKE_PT_AUTHENTICATION:
-                if (process_auth_payload(p, remaining_len, &cur_len, &next_type, ...) < 0)
+                {}
+                ike_auth_method_t auth_method;
+                if (process_auth_payload(p, remaining_len, &cur_len, &next_type, &auth_method, &auth_data_recv) < 0)
                 {
                     puts("AUTH payload parsing failed");
                     return -1;
                 }
+                if (auth_method != IKE_AUTH_METHOD_PSK)
+                {
+                    puts("Unsupported AUTH method");
+                    return -1;
+                }
                 break;
-            */
             case IKE_PT_TRAFFIC_SELECTOR_I:
                 if (process_ts_payload(p, remaining_len, &cur_len, &next_type, &ike_ctx.local_ts.start, &ike_ctx.local_ts.end) < 0)
                 {
@@ -792,6 +809,28 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
         p += cur_len;
     }
     // verify
+    /* Construct Authentication */
+    chunk_t authed_data;
+    chunk_t auth_data = {.len = (ike_ctx.real_message_2.len + ike_ctx.ike_nonce_i.len + HASH_SIZE_SHA1)};
+    auth_data.ptr = alloca(auth_data.len);
+    chunk_t maced_id;
+    if (_prf(ike_ctx.sk_pr, idx, &maced_id) < 0)
+    {
+        return -1;
+    }
+    memcpy(auth_data.ptr, ike_ctx.real_message_2.ptr, ike_ctx.real_message_2.len);
+    memcpy(auth_data.ptr + ike_ctx.real_message_2.len, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
+    memcpy(auth_data.ptr + ike_ctx.real_message_2.len + ike_ctx.ike_nonce_i.len, maced_id.ptr, maced_id.len);
+    free_chunk(&maced_id);
+    if (_get_auth(auth_data, &authed_data) < 0)
+    {
+        return -1;
+    }
+    if (authed_data.len != auth_data_recv.len || memcmp(authed_data.ptr, auth_data_recv.ptr, authed_data.len))
+    {
+        puts("Authentication failed");
+        return -1;
+    }
     return 0;
 }
 
@@ -944,6 +983,7 @@ static int _get_auth(chunk_t input, chunk_t *auth_data)
     }
     return 0;
 }
+
 static int _prf(chunk_t key, chunk_t seed, chunk_t *out)
 {
     Hmac hmac;
