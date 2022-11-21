@@ -111,6 +111,7 @@ static int _get_secrets(void);
 static int _get_auth(chunk_t input, chunk_t *auth_data);
 static int _prf(chunk_t key, chunk_t seed, chunk_t *out);
 static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out);
+static int _generate_child_key(void);
 
 static inline uint32_t untoh32(void *network)
 {
@@ -180,6 +181,11 @@ int ike_init(char *addr_str)
     if (_parse_auth_r(data_in, len) < 0)
     {
         puts("Parsing IKE AUTH message failed");
+        return -1;
+    }
+    if (_generate_child_key() < 0)
+    {
+        puts("Generating Child Keying material failed");
         return -1;
     }
     puts("Tunnel established");
@@ -834,6 +840,42 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     return 0;
 }
 
+static int _generate_child_key(void)
+{
+    chunk_t enc_i = {.len = 16, .ptr = alloca(16)};
+    chunk_t int_i = {.len = 20, .ptr = alloca(20)};
+    chunk_t enc_r = {.len = 16, .ptr = alloca(16)};
+    chunk_t int_r = {.len = 20, .ptr = alloca(20)};
+    chunk_t parts[] = {enc_i, int_i, enc_r, int_r};
+    chunk_t nonces = {.len = ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len};
+    chunk_t out;
+    nonces.ptr = alloca(nonces.len);
+    memcpy(nonces.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
+    memcpy(nonces.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
+    if (_prf_plus(ike_ctx.sk_d, nonces, 72, &out) < 0)
+    {
+        return -1;
+    }
+    puts("Generated keying material");
+    printf_chunk(out, 8);
+    char *p = out.ptr;
+    for (size_t i = 0; i < countof(parts); ++i)
+    {
+        chunk_t part = parts[i];
+        memcpy(part.ptr, p, part.len);
+        p += part.len;
+    }
+    puts("Encryption Initiator");
+    printf_chunk(enc_i, 8);
+    puts("Encryption Responder");
+    printf_chunk(enc_r, 8);
+    puts("Integrity Initiator");
+    printf_chunk(int_i, 8);
+    puts("Integrity Responder");
+    printf_chunk(int_r, 8);
+    free_chunk(&out);
+    return 0;
+}
 static int _generate_key(void)
 {
     const u_char p[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34,

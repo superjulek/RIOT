@@ -30,6 +30,8 @@ extern "C"
 #define HMAC_SIZE_SHA1_96 12
 #define KEY_SIZE_SHA1 20
 
+#define countof(t) sizeof(t)/sizeof(*t)
+
     typedef enum
     {
         IKE_STATE_OFF = 0,
