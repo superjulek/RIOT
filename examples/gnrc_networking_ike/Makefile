@@ -1,5 +1,5 @@
 # name of your application
-APPLICATION = gnrc_networking
+APPLICATION = gnrc_networking_ike
 
 # If no BOARD is found in the environment, use this default:
 BOARD ?= native

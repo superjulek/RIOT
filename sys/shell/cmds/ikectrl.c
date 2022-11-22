@@ -70,4 +70,4 @@ static void _print_ike_usage(char *cmdname)
     puts("     -i - initialize IKE SA to addrs");
 }
 
-SHELL_COMMAND(ike_ctrl, "Controll IKE daemon", _parse_ike_cmd);
+SHELL_COMMAND(ike_ctrl, "Control IKE daemon", _parse_ike_cmd);
