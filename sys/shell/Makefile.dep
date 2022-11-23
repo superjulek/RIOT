@@ -76,7 +76,7 @@ ifneq (,$(filter shell_cmds_default,$(USEMODULE)))
     USEMODULE += shell_cmd_i2c_scan
   endif
   ifneq (,$(filter ike,$(USEMODULE)))
-    USEMODULE += shell_cmd_ikectrl
+    USEMODULE += shell_cmd_ike_control
   endif
   ifneq (,$(filter lpc2387,$(USEMODULE)))
     USEMODULE += shell_cmd_heap
