@@ -18,10 +18,10 @@
  * @}
  */
 
+#include <stdio.h>
+
 #include "ike/ike.h"
 #include "shell.h"
-
-#include <stdio.h>
 
 int _parse_ike_cmd(int argc, char **argv);
 static void _print_ike_usage(char *cmdname);
@@ -70,4 +70,4 @@ static void _print_ike_usage(char *cmdname)
     puts("     -i - initialize IKE SA to addrs");
 }
 
-SHELL_COMMAND(ikectrl, "Control IKE daemon", _parse_ike_cmd);
+SHELL_COMMAND(ike_control, "Command for managing IPSec", _parse_ike_cmd);
