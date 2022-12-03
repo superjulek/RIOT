@@ -34,34 +34,33 @@ int _parse_ike_cmd(int argc, char **argv)
     /* parse command line arguments */
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
-        if (arg[0] != '-')
-        {
+        if (arg[0] != '-') {
             break;
         }
         switch (arg[1]) {
-            case 'h':
-                _print_ike_usage(cmdname);
-                res = 0;
+        case 'h':
+            _print_ike_usage(cmdname);
+            res = 0;
+            break;
+        case 'i':
+            if (i + 1 >= argc) {
+                puts("No peer address given");
                 break;
-            case 'i':
-                if (i + 1 >= argc)
-                {
-                    puts("No peer address given");
-                    break;
-                }
-                res = ike_init(argv[i + 1]);
-                break;
-            default:
-                break;
+            }
+            res = ike_init(argv[i + 1]);
+            break;
+        default:
+            break;
         }
     }
-    if (res != 0)
-    {
+    if (res != 0) {
         _print_ike_usage(cmdname);
     }
     return res;
 
 }
+
+SHELL_COMMAND(ike_control, "Command for managing IPSec", _parse_ike_cmd);
 
 static void _print_ike_usage(char *cmdname)
 {
@@ -69,5 +68,3 @@ static void _print_ike_usage(char *cmdname)
            cmdname);
     puts("     -i - initialize IKE SA to addrs");
 }
-
-SHELL_COMMAND(ike_control, "Command for managing IPSec", _parse_ike_cmd);
