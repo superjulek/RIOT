@@ -372,6 +372,12 @@ ifneq (,$(filter gnrc_ipv6_ext,$(USEMODULE)))
   USEMODULE += gnrc_nettype_ipv6_ext
 endif
 
+ifneq (,$(filter gnrc_ipv6_ipsec,$(USEMODULE)))
+  DEFAULT_MODULE += auto_init_gnrc_ipv6_esp
+  USEMODULE += gnrc_nettype_ipv6
+  USEMODULE += gnrc_nettype_ipv6_ext_esp
+endif
+
 ifneq (,$(filter gnrc_ipv6_whitelist,$(USEMODULE)))
   USEMODULE += ipv6_addr
 endif

@@ -13,7 +13,7 @@
  * @file
  * @brief       Shell commands for the IKE module
  *
- * @author      Juliusz Neuman <superjulek@interia.pl>
+ * @author      Juliusz Neuman <neuman.juliusz@gmail.com>
  *
  * @}
  */

@@ -178,6 +178,12 @@ PSEUDOMODULES += gnrc_nettype_ipv6
 PSEUDOMODULES += gnrc_nettype_ipv6_ext
 ## @}
 
+## @defgroup 	net_gnrc_nettype_ipv6_ext   gnrc_nettype_ipv6_ext
+## @{
+## Enables @ref GNRC_NETTYPE_IPV6_EXT.
+PSEUDOMODULES += gnrc_nettype_ipv6_ext_esp
+## @}
+
 ## @defgroup 	net_gnrc_nettype_lorawan    gnrc_nettype_lorawan
 ## Enables @ref GNRC_NETTYPE_LORAWAN
 ## @{

@@ -7,7 +7,14 @@
     "files.insertFinalNewline": true,
     "files.associations": {
         "Makefile.*": "makefile",
-        "*.mk": "makefile"
+        "*.mk": "makefile",
+        "ipsec.h": "c",
+        "pkt.h": "c",
+        "frag.h": "c",
+        "sixlowpan.h": "c",
+        "sched.h": "c",
+        "hdr.h": "c",
+        "esp.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
@@ -17,4 +24,5 @@
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
     },
+    "C_Cpp.default.defines": ["MODULE_GNRC_IPV6_IPSEC"]
 }

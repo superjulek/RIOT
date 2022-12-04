@@ -30,6 +30,7 @@ USEMODULE += netstats_ipv6
 USEMODULE += netstats_rpl
 
 USEMODULE += ike
+USEMODULE += gnrc_ipv6_ipsec
 
 USEMODULE += sock_udp
 USEPKG += wolfssl

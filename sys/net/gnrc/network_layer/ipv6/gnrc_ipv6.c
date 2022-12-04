@@ -37,6 +37,12 @@
 #include "net/gnrc/ipv6/ext/frag.h"
 #endif
 
+#ifdef MODULE_GNRC_IPV6_IPSEC
+#include "net/gnrc/ipv6/ipsec.h"
+#include "net/gnrc/ipv6/ipsec/ipsec_ts.h"
+#include "net/gnrc/ipv6/ipsec/ipsec_spd.h"
+#endif
+
 #ifdef MODULE_FIB
 #include "net/fib.h"
 #include "net/fib/table.h"
@@ -264,6 +270,35 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 
     (void)hdr;  /* only used for DEBUG messages */
     assert(netif != NULL);
+#ifdef MODULE_GNRC_IPV6_IPSEC
+    ipsec_ts_t ts;
+    if (ipsec_ts_from_pkt(pkt, &ts))
+    {
+        DEBUG("ipv6_ipsec: couldn't create traffic selector. Release pkt\n");
+        gnrc_pktbuf_release_error(pkt, EPROTO);
+        return;
+    }
+    switch (ipsec_get_policy_rule(&ts)) {
+        case IPSEC_SP_RULE_PROTECT:
+            DEBUG("ipv6_ipsec: PROTECT\n");
+            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
+                DEBUG("ipv6_ipsec: no ESP thread found\n");
+                gnrc_pktbuf_release(pkt);
+            }
+            return;
+        case IPSEC_SP_RULE_DROP:
+            DEBUG("ipv6_ipsec: DROP\n");
+            gnrc_pktbuf_release(pkt);
+            break;
+        case IPSEC_SP_RULE_BYPASS:
+            DEBUG("ipv6_ipsec: BYPASS\n");
+            break;
+        case IPSEC_SP_RULE_ERROR:
+            DEBUG("ipv6_ipsec: ERROR\n");
+            gnrc_pktbuf_release_error(pkt, EPROTO);
+            return;
+    }
+#endif /* MODULE_GNRC_IPV6_IPSEC */
     gnrc_netif_hdr_set_netif(pkt->data, netif);
     if (gnrc_pkt_len(pkt->next) > netif->ipv6.mtu) {
         DEBUG("ipv6: packet too big\n");
