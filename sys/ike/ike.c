@@ -1,17 +1,12 @@
-/**
- * Print thread information.
+/*
+ * Copyright (C) 2022 Juliusz Neuman
  *
- * Copyright (C) 2013, INRIA.
- *
- * This file is subject to the terms and conditions of the GNU Lesser
- * General Public License v2.1. See the file LICENSE in the top level
- * directory for more details.
  *
  * @ingroup sys_ps
  * @{
  * @file
  * @brief   IKE
- * @author      Juliusz Neuman <superjulek@interia.pl>
+ * @author      Juliusz Neuman <neuman.juliusz@gmail.com>
  * @}
  */
 

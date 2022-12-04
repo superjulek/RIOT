@@ -11,7 +11,7 @@
  * @{
  * @file
  * @brief   IKE
- * @author      Juliusz Neuman <superjulek@interia.pl>
+ * @author      Juliusz Neuman <neuman.juliusz@gmail.com>
  * @}
  */
 

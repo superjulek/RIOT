@@ -1,9 +1,5 @@
 /*
- * Copyright (C) 2010 Freie Universität Berlin
- *
- * This file is subject to the terms and conditions of the GNU Lesser
- * General Public License v2.1. See the file LICENSE in the top level
- * directory for more details.
+ * Copyright (C) 2022 Juliusz Neuman
  */
 
 /**
@@ -15,7 +11,7 @@
  * @file
  * @brief       IKE
  *
- * @author      Juliusz Neuman <superjulek@interia.pl>
+ * @author      Juliusz Neuman <neuman.juliusz@gmail.com>
  */
 
 #ifndef IKE_H
