@@ -14,7 +14,16 @@
         "sixlowpan.h": "c",
         "sched.h": "c",
         "hdr.h": "c",
-        "esp.h": "c"
+        "esp.h": "c",
+        "config.h": "c",
+        "debug.h": "c",
+        "ipv6.h": "c",
+        "ext.h": "c",
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "ranges": "c",
+        "utility": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,

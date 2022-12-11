@@ -77,6 +77,7 @@ ifneq (,$(filter shell_cmds_default,$(USEMODULE)))
   endif
   ifneq (,$(filter ike,$(USEMODULE)))
     USEMODULE += shell_cmd_ike_control
+    USEMODULE += gnrc_ipv6_ipsec
   endif
   ifneq (,$(filter lpc2387,$(USEMODULE)))
     USEMODULE += shell_cmd_heap

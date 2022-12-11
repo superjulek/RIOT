@@ -375,6 +375,8 @@ endif
 ifneq (,$(filter gnrc_ipv6_ipsec,$(USEMODULE)))
   DEFAULT_MODULE += auto_init_gnrc_ipv6_esp
   USEMODULE += gnrc_nettype_ipv6
+  USEMODULE += gnrc_ipv6_ext
+  USEMODULE += gnrc_nettype_ipv6_ext
   USEMODULE += gnrc_nettype_ipv6_ext_esp
 endif
 
