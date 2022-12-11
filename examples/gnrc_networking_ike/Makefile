@@ -40,7 +40,7 @@ USEMODULE += wolfssl_dtls
 USEMODULE += wolfcrypt_rsa wolfcrypt_dh
 USEMODULE += wolfssl_psk
 
-CFLAGS_OPT = -O0
+CFLAGS_OPT = -O0 -ggdb
 
 # Optionally include DNS support. This includes resolution of names at an
 # upstream DNS server and the handling of RDNSS options in Router Advertisements

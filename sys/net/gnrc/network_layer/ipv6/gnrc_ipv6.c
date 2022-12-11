@@ -270,6 +270,7 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 
     (void)hdr;  /* only used for DEBUG messages */
     assert(netif != NULL);
+    gnrc_netif_hdr_set_netif(pkt->data, netif);
 #ifdef MODULE_GNRC_IPV6_IPSEC
     ipsec_ts_t ts;
     if (ipsec_ts_from_pkt(pkt, &ts))
@@ -299,7 +300,6 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             return;
     }
 #endif /* MODULE_GNRC_IPV6_IPSEC */
-    gnrc_netif_hdr_set_netif(pkt->data, netif);
     if (gnrc_pkt_len(pkt->next) > netif->ipv6.mtu) {
         DEBUG("ipv6: packet too big\n");
         gnrc_icmpv6_error_pkt_too_big_send(netif->ipv6.mtu, pkt);
