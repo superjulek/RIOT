@@ -8,16 +8,23 @@
 
 
 #include "net/gnrc/pkt.h"
+#include "net/gnrc/ipv6/ipsec/ipsec_enums.h"
+#include "net/ipv6/addr.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-typedef struct {
-    uint16_t a;
+typedef struct __attribute__((__packed__)) {
+    ipv6_addr_t dst;
+    ipv6_addr_t src;
+    uint16_t dst_port; //NULL when -1
+    uint16_t src_port; //NULL when -1
+    uint8_t prot;
 } ipsec_ts_t;
 
-int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts);
+
+int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts, traffic_dir_t dir);
 
 #ifdef __cplusplus
 }

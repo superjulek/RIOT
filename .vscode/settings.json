@@ -23,7 +23,10 @@
         "string_view": "c",
         "initializer_list": "c",
         "ranges": "c",
-        "utility": "c"
+        "utility": "c",
+        "hmac.h": "c",
+        "ipsec_ts.h": "c",
+        "ipsec_enums.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,

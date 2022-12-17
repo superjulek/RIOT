@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-kernel_pid_t gnrc_ipv6_esp_init(void);
+gnrc_pktsnip_t *process_esp_header(gnrc_pktsnip_t *pkt);
 
 #ifdef __cplusplus
 }
