@@ -110,10 +110,10 @@ extern void gnrc_sixlowpan_init(void);
 AUTO_INIT(gnrc_sixlowpan_init,
           AUTO_INIT_PRIO_MOD_GNRC_SIXLOWPAN);
 #endif
-#if IS_USED(MODULE_AUTO_INIT_GNRC_IPV6_ESP)
-extern void gnrc_ipv6_esp_init(void);
-AUTO_INIT(gnrc_ipv6_esp_init,
-          AUTO_INIT_PRIO_MOD_GNRC_IPV6_ESP);
+#if IS_USED(MODULE_AUTO_INIT_GNRC_IPV6_IPSEC)
+extern void gnrc_ipv6_ipsec_init(void);
+AUTO_INIT(gnrc_ipv6_ipsec_init,
+          AUTO_INIT_PRIO_MOD_GNRC_IPV6_IPSEC);
 #endif
 #if IS_USED(MODULE_AUTO_INIT_GNRC_IPV6)
 extern kernel_pid_t gnrc_ipv6_init(void);

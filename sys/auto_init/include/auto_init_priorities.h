@@ -119,11 +119,11 @@ extern "C" {
  */
 #define AUTO_INIT_PRIO_MOD_GNRC_SIXLOWPAN               1140
 #endif
-#ifndef AUTO_INIT_PRIO_MOD_GNRC_IPV6_ESP
+#ifndef AUTO_INIT_PRIO_MOD_GNRC_IPV6_IPSEC
 /**
- * @brief   GNRC ESP priority
+ * @brief   GNRC IPSEC priority
  */
-#define AUTO_INIT_PRIO_MOD_GNRC_IPV6_ESP               1141
+#define AUTO_INIT_PRIO_MOD_GNRC_IPV6_IPSEC               1141
 #endif
 #ifndef AUTO_INIT_PRIO_MOD_GNRC_IPV6
 /**
