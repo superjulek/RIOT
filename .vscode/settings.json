@@ -26,7 +26,10 @@
         "utility": "c",
         "hmac.h": "c",
         "ipsec_ts.h": "c",
-        "ipsec_enums.h": "c"
+        "ipsec_enums.h": "c",
+        "ipsec_db.h": "c",
+        "nettype.h": "c",
+        "udp.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
