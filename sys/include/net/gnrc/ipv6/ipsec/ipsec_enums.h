@@ -17,7 +17,29 @@ typedef enum {
 typedef enum {
     TRAFFIC_DIR_OUT,
     TRAFFIC_DIR_IN,
-} traffic_dir_t;
+} ipsec_traffic_dir_t;
+
+typedef enum {
+    IPSEC_CIPHER_MODE_NONE,
+    IPSEC_CIPHER_MODE_AUTH_ONLY,
+    IPSEC_CIPHER_MODE_ENC_AUTH,
+    IPSEC_CIPHER_MODE_COMB,
+} ipsec_cipher_mode_t;
+
+typedef enum {
+    IPSEC_CIPHER_NONE,
+    IPSEC_CIPHER_AES128_CBC,
+} ipsec_cipher_t;
+
+typedef enum {
+    IPSEC_HASH_NONE,
+    IPSEC_HASH_SHA1,
+} ipsec_hash_t;
+
+typedef enum {
+    IPSEC_MODE_TUNNEL,
+    IPSEC_MODE_TRANSPORT,
+} ipsec_mode_t;
 
 #ifdef __cplusplus
 }

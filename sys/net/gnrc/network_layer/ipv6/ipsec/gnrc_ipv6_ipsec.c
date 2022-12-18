@@ -7,6 +7,7 @@
 
 #include "net/gnrc/ipv6/ipsec/esp.h"
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
+#include "net/gnrc/ipv6/ipsec/ipsec_db.h"
 #include "net/gnrc/ipv6/hdr.h"
 #include "net/gnrc/netif.h"
 #include "net/gnrc/ipv6.h"
@@ -27,11 +28,17 @@ static void _send(gnrc_pktsnip_t *pkt);
 /* Main event loop for IPv6 IPSEC */
 static void *_event_loop(void *args);
 
-ipsec_sp_rule_t ipsec_get_policy_rule(ipsec_ts_t *ts, traffic_dir_t dir)
+ipsec_sp_rule_t ipsec_get_policy_rule(ipsec_ts_t *ts, ipsec_traffic_dir_t dir)
 {
-    (void) ts;
     (void) dir;
-    return IPSEC_SP_RULE_PROTECT;
+    ipsec_sp_t sp;
+
+    if (get_sp_by_ts(ts, &sp) < 0)
+    {
+        DEBUG("ipv6_ipsec: No SPD policy for this packet found\n");
+        return IPSEC_SP_RULE_DROP;
+    }
+    return sp.rule;
 }
 
 kernel_pid_t gnrc_ipv6_ipsec_init(void)
@@ -39,6 +46,9 @@ kernel_pid_t gnrc_ipv6_ipsec_init(void)
     if (_pid > KERNEL_PID_UNDEF) {
         return _pid;
     }
+    sadb_init();
+    spdb_init();
+    sasp_tmp_init();
 
     _pid = thread_create(_stack, sizeof(_stack), GNRC_IPV6_IPSEC_PRIO,
                          THREAD_CREATE_STACKTEST, _event_loop, NULL, "ipv6_esp");
@@ -135,7 +145,7 @@ void gnrc_ipv6_ipsec_dispatch_recv(gnrc_pktsnip_t *pkt)
 #endif  /* MODULE_GNRC_IPV6 */
     if (!gnrc_netapi_dispatch_receive(type,
                                       GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
-        DEBUG("ipv6_esp: No receivers for this packet found\n");
+        DEBUG("ipv6_ipsec: No receivers for this packet found\n");
         gnrc_pktbuf_release(pkt);
     }
 }
@@ -146,7 +156,7 @@ void gnrc_ipv6_ipsec_dispatch_send(gnrc_pktsnip_t *pkt)
     gnrc_netif_hdr_t *hdr = pkt->data;
 
     if (gnrc_netif_send(gnrc_netif_get_by_pid(hdr->if_pid), pkt) < 1) {
-        DEBUG("ipv6_esp: unable to send %p over interface %u\n", (void *)pkt,
+        DEBUG("ipv6_ipsec: unable to send %p over interface %u\n", (void *)pkt,
               hdr->if_pid);
         gnrc_pktbuf_release(pkt);
     }
@@ -161,7 +171,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
                                              * might get replaced */
 
     if (payload == NULL) {
-        DEBUG("ipv6_esp: can not get write access on received packet\n");
+        DEBUG("ipv6_ipsec: can not get write access on received packet\n");
 #if defined(DEVELHELP) && ENABLE_DEBUG
         gnrc_pktbuf_stats();
 #endif
@@ -174,7 +184,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
     payload = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6_EXT_ESP);
 
     if ((payload == NULL) || (payload->size < 1)) {
-        DEBUG("ipv6_esp: Received packet has no IPSEC payload\n");
+        DEBUG("ipv6_ipsec: Received packet has no IPSEC payload\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
@@ -189,13 +199,13 @@ static void _send(gnrc_pktsnip_t *pkt)
     netif = gnrc_netif_hdr_get_netif(pkt->data);
 
     if (netif == NULL) {
-        DEBUG("ipv6_esp: Can not IPSEC specific interface information.\n");
+        DEBUG("ipv6_ipsec: Can not IPSEC specific interface information.\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
 
     if ((pkt == NULL) || (pkt->size < sizeof(gnrc_netif_hdr_t))) {
-        DEBUG("ipv6_esp: Sending packet has no netif header\n");
+        DEBUG("ipv6_ipsec: Sending packet has no netif header\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
@@ -211,14 +221,14 @@ static void _send(gnrc_pktsnip_t *pkt)
     tmp = gnrc_pktbuf_start_write(pkt);
 
     if (tmp == NULL) {
-        DEBUG("ipv6_esp: no space left in packet buffer\n");
+        DEBUG("ipv6_ipsec: no space left in packet buffer\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
     pkt = tmp;
     tmp = encapsulate(pkt);
     if (tmp == NULL) {
-        DEBUG("ipv6_esp: payload encapsulation failed\n");
+        DEBUG("ipv6_ipsec: payload encapsulation failed\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
@@ -243,29 +253,29 @@ static void *_event_loop(void *args)
 
     /* start event loop */
     while (1) {
-        DEBUG("ipv6_esp: waiting for incoming message.\n");
+        DEBUG("ipv6_ipsec: waiting for incoming message.\n");
         msg_receive(&msg);
 
         switch (msg.type) {
         case GNRC_NETAPI_MSG_TYPE_RCV:
-            DEBUG("ipv6_esp: GNRC_NETDEV_MSG_TYPE_RCV received\n");
+            DEBUG("ipv6_ipsec: GNRC_NETDEV_MSG_TYPE_RCV received\n");
             _receive(msg.content.ptr);
             break;
 
         case GNRC_NETAPI_MSG_TYPE_SND:
-            DEBUG("ipv6_esp: GNRC_NETDEV_MSG_TYPE_SND received\n");
+            DEBUG("ipv6_ipsec: GNRC_NETDEV_MSG_TYPE_SND received\n");
             _send(msg.content.ptr);
             break;
 
         case GNRC_NETAPI_MSG_TYPE_GET:
         case GNRC_NETAPI_MSG_TYPE_SET:
-            DEBUG("ipv6_esp: reply to unsupported get/set\n");
+            DEBUG("ipv6_ipsec: reply to unsupported get/set\n");
             reply.content.value = -ENOTSUP;
             msg_reply(&msg, &reply);
             break;
 
         default:
-            DEBUG("ipv6_esp: operation not supported\n");
+            DEBUG("ipv6_ipsec: operation not supported\n");
             break;
         }
     }

@@ -20,11 +20,11 @@ typedef struct __attribute__((__packed__)) {
     ipv6_addr_t src;
     uint16_t dst_port; //NULL when -1
     uint16_t src_port; //NULL when -1
-    uint8_t prot;
+    uint8_t proto;
 } ipsec_ts_t;
 
 
-int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts, traffic_dir_t dir);
+int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts);
 
 #ifdef __cplusplus
 }

@@ -41,6 +41,22 @@ extern "C" {
 #define GNRC_IPV6_IPSEC_MSG_QUEUE_SIZE    (1 << CONFIG_GNRC_IPV6_IPSEC_MSG_QUEUE_SIZE_EXP)
 #endif
 
+#ifndef IPSEC_MAX_KEY_SIZE
+#define IPSEC_MAX_KEY_SIZE 32
+#endif
+
+#ifndef IPSEC_MAX_HASH_SIZE
+#define IPSEC_MAX_HASH_SIZE 32
+#endif
+
+#ifndef IPSEC_MAX_SA_NUM
+#define IPSEC_MAX_SA_NUM 2
+#endif
+
+#ifndef IPSEC_MAX_SP_NUM
+#define IPSEC_MAX_SP_NUM 2
+#endif
+
 #ifdef __cplusplus
 }
 #endif

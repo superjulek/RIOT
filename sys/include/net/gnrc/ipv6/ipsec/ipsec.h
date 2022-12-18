@@ -12,7 +12,7 @@ extern "C" {
 
 kernel_pid_t gnrc_ipv6_ipsec_init(void);
 
-ipsec_sp_rule_t ipsec_get_policy_rule(ipsec_ts_t *ts, traffic_dir_t dir);
+ipsec_sp_rule_t ipsec_get_policy_rule(ipsec_ts_t *ts, ipsec_traffic_dir_t dir);
 
 #ifdef __cplusplus
 }

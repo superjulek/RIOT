@@ -278,7 +278,7 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     }
 #ifdef MODULE_GNRC_IPV6_IPSEC
     ipsec_ts_t ts;
-    if (ipsec_ts_from_pkt(pkt, &ts, TRAFFIC_DIR_OUT))
+    if (ipsec_ts_from_pkt(pkt, &ts))
     {
         DEBUG("ipv6_ipsec: couldn't create traffic selector. Release pkt\n");
         gnrc_pktbuf_release_error(pkt, EPROTO);
@@ -295,7 +295,7 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         case IPSEC_SP_RULE_DROP:
             DEBUG("ipv6_ipsec: TX DROP\n");
             gnrc_pktbuf_release(pkt);
-            break;
+            return;
         case IPSEC_SP_RULE_BYPASS:
             DEBUG("ipv6_ipsec: TX BYPASS\n");
             break;
@@ -891,7 +891,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
     }
 #ifdef MODULE_GNRC_IPV6_IPSEC
     ipsec_ts_t ts;
-    if (ipsec_ts_from_pkt(pkt, &ts, TRAFFIC_DIR_IN))
+    if (ipsec_ts_from_pkt(pkt, &ts))
     {
         DEBUG("ipv6_ipsec: couldn't create traffic selector. Release pkt\n");
         gnrc_pktbuf_release_error(pkt, EPROTO);
@@ -909,7 +909,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
         case IPSEC_SP_RULE_DROP:
             DEBUG("ipv6_ipsec: RX DROP\n");
             gnrc_pktbuf_release(pkt);
-            break;
+            return;
         case IPSEC_SP_RULE_BYPASS:
             DEBUG("ipv6_ipsec: RX BYPASS\n");
             break;
