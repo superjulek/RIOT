@@ -38,13 +38,37 @@ int spdb_init(void)
 
 int sasp_tmp_init(void)
 {
-    ipsec_sp_t sp = {
+    ipsec_sp_t sp1 = {
         .rule = IPSEC_SP_RULE_BYPASS,
         .tun_dst_mask = 0,
         .tun_src_mask = 0,
         .proto = PROTNUM_ICMPV6,
     };
-    add_sp(&sp);
+    ipsec_sp_t sp2 = {
+        .rule = IPSEC_SP_RULE_PROTECT,
+        .tun_dst_mask = 128,
+        .tun_src_mask = 128,
+        .proto = 0,
+    };
+    ipv6_addr_from_str(&sp2.src, "aa::02");
+    ipv6_addr_from_str(&sp2.dst, "aa::01");
+    ipsec_sp_t sp3 = {
+        .rule = IPSEC_SP_RULE_PROTECT,
+        .tun_dst_mask = 128,
+        .tun_src_mask = 128,
+        .proto = 0,
+    };
+    ipv6_addr_from_str(&sp3.src, "aa::01");
+    ipv6_addr_from_str(&sp3.dst, "aa::02");
+    ipsec_sp_t sp4 = {
+        .rule = IPSEC_SP_RULE_BYPASS,
+        .tun_dst_mask = 0,
+        .tun_src_mask = 0,
+    };
+    add_sp(&sp1);
+    add_sp(&sp2);
+    add_sp(&sp3);
+    add_sp(&sp4);
     return 0;
 }
 
@@ -144,6 +168,20 @@ int get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)
         }
         *sp = entry->sp_ext;
         return 0;
+    }
+    return -ENOENT;
+}
+
+int ipsec_get_sa_by_spi(uint32_t spi, ipsec_sa_t *sa)
+{
+    internal_ipsec_sa_t *entry;
+
+    for (int i = 0; i < IPSEC_MAX_SA_NUM; ++i) {
+        entry = &sadb[i];
+        if (entry->set && entry->sa_ext.spi == spi) {
+            memcpy(sa, &entry->sa_ext, sizeof(*sa));
+            return 0;
+        }
     }
     return -ENOENT;
 }

@@ -50,11 +50,11 @@ extern "C" {
 #endif
 
 #ifndef IPSEC_MAX_SA_NUM
-#define IPSEC_MAX_SA_NUM 2
+#define IPSEC_MAX_SA_NUM 5
 #endif
 
 #ifndef IPSEC_MAX_SP_NUM
-#define IPSEC_MAX_SP_NUM 2
+#define IPSEC_MAX_SP_NUM 5
 #endif
 
 #ifdef __cplusplus

@@ -29,7 +29,10 @@
         "ipsec_enums.h": "c",
         "ipsec_db.h": "c",
         "nettype.h": "c",
-        "udp.h": "c"
+        "udp.h": "c",
+        "rh.h": "c",
+        "pktbuf.h": "c",
+        "addr.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,

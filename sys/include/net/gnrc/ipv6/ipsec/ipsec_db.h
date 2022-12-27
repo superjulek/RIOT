@@ -77,6 +77,8 @@ int del_sp(uint32_t sp_idx);
 
 int get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp);
 
+int ipsec_get_sa_by_spi(uint32_t spi, ipsec_sa_t *sa);
+
 #ifdef __cplusplus
 }
 #endif

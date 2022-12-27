@@ -199,7 +199,7 @@ static void _send(gnrc_pktsnip_t *pkt)
     netif = gnrc_netif_hdr_get_netif(pkt->data);
 
     if (netif == NULL) {
-        DEBUG("ipv6_ipsec: Can not IPSEC specific interface information.\n");
+        DEBUG("ipv6_ipsec: Can not get specific interface information.\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
