@@ -32,7 +32,12 @@
         "udp.h": "c",
         "rh.h": "c",
         "pktbuf.h": "c",
-        "addr.h": "c"
+        "addr.h": "c",
+        "aes.h": "c",
+        "tests-hashes.h": "c",
+        "sha1.h": "c",
+        "ciphers.h": "c",
+        "cbc.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,

@@ -23,7 +23,7 @@ static internal_ipsec_sp_t spdb[IPSEC_MAX_SP_NUM];
 int sadb_init(void)
 {
     for (int i = 0; i < IPSEC_MAX_SA_NUM; ++i) {
-        sadb[i] = (internal_ipsec_sa_t){0};
+        sadb[i] = (internal_ipsec_sa_t){ 0 };
     }
     return 0;
 }
@@ -31,7 +31,7 @@ int sadb_init(void)
 int spdb_init(void)
 {
     for (int i = 0; i < IPSEC_MAX_SP_NUM; ++i) {
-        spdb[i] = (internal_ipsec_sp_t){0};
+        spdb[i] = (internal_ipsec_sp_t){ 0 };
     }
     return 0;
 }
@@ -50,6 +50,7 @@ int sasp_tmp_init(void)
         .tun_src_mask = 128,
         .proto = 0,
     };
+
     ipv6_addr_from_str(&sp2.src, "aa::02");
     ipv6_addr_from_str(&sp2.dst, "aa::01");
     ipsec_sp_t sp3 = {
@@ -58,6 +59,7 @@ int sasp_tmp_init(void)
         .tun_src_mask = 128,
         .proto = 0,
     };
+
     ipv6_addr_from_str(&sp3.src, "aa::01");
     ipv6_addr_from_str(&sp3.dst, "aa::02");
     ipsec_sp_t sp4 = {
@@ -65,10 +67,28 @@ int sasp_tmp_init(void)
         .tun_dst_mask = 0,
         .tun_src_mask = 0,
     };
+    ipsec_sa_t sa1 = {
+        .spi = 0x12345678,
+        .mode = IPSEC_MODE_TRANSPORT,
+        .c_mode = IPSEC_CIPHER_MODE_ENC_AUTH,
+        .crypt_info = {
+            .cipher = IPSEC_CIPHER_AES128_CBC,
+            .hash = IPSEC_HASH_SHA1,
+            .key = { 0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12, 0x34,
+                     0x56, 0x78, 0x12, 0x34, 0x56, 0x78 },
+            .hash_key = { 0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12,
+                          0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12, 0x34,
+                          0x56, 0x78 },
+        },
+    };
+    ipv6_addr_from_str(&sa1.src, "aa::01");
+    ipv6_addr_from_str(&sa1.dst, "aa::02");
+
     add_sp(&sp1);
     add_sp(&sp2);
     add_sp(&sp3);
     add_sp(&sp4);
+    add_sa(&sa1);
     return 0;
 }
 
@@ -116,7 +136,7 @@ int del_sa(uint32_t spi)
     for (int i = 0; i < IPSEC_MAX_SA_NUM; ++i) {
         entry = &sadb[i];
         if (entry->sa_ext.spi == spi) {
-            entry->sa_ext = (ipsec_sa_t){0};
+            entry->sa_ext = (ipsec_sa_t){ 0 };
             entry->set = 0;
             return 0;
         }
@@ -136,7 +156,7 @@ int del_sp(uint32_t sp_idx)
         return -ENOENT;
     }
     entry->set = 0;
-    entry->sp_ext = (ipsec_sp_t){0};
+    entry->sp_ext = (ipsec_sp_t){ 0 };
     return -ENOENT;
 }
 
