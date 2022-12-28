@@ -2,40 +2,13 @@
 #include "net/gnrc/ipv6/ipsec/ipsec.h"
 #include "net/gnrc/ipv6/ipsec/ipsec_db.h"
 #include "net/gnrc/ipv6/ipsec/esp.h"
+#include "crypto/aes.h"
+#include "hashes/sha1.h"
+#include "crypto/modes/cbc.h"
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
 
-
-static int _decrypt(gnrc_pktsnip_t *esp, const ipsec_sa_t *sa) {
-
-	/* On using DietESP: On en- and decryption some negotiated DietESP rules
-	need to be checked and minded for all ciphers, like e.g. Implicit IV */
-    size_t icv_len, iv_len;
-    //ipv6_esp_trl_t trl;
-
-	switch(sa->crypt_info.hash) {
-        case IPSEC_HASH_SHA1:
-            icv_len = 20;
-            break;
-        default:
-			DEBUG("ipsec_esp: ERROR unsupported hash\n");
-			return -1;
-    }
-
-	switch(sa->crypt_info.cipher) {
-        case IPSEC_CIPHER_AES128_CBC:
-            iv_len = 16;
-            break;
-        default:
-			DEBUG("ipsec_esp: ERROR unsupported cipher\n");
-			return -1;
-    }
-    (void) iv_len;
-    (void) icv_len;
-    (void) esp;
-	return 0;
-}
 
 static int _calc_fields(const ipsec_sa_t *sa, uint8_t *iv_size, uint8_t *icv_size,
 						uint8_t *block_size) {
@@ -49,18 +22,53 @@ static int _calc_fields(const ipsec_sa_t *sa, uint8_t *iv_size, uint8_t *icv_siz
 			break;
 		default:
 			DEBUG("ipsec_esp: ERROR unsupported cipher\n");
-			return 0;
+			return -1;
 	}
 	switch(sa->crypt_info.hash) {
 		case IPSEC_HASH_SHA1:
-				*icv_size = 20;
+				*icv_size = 12;
 			break;
 		default:
 			DEBUG("ipsec_esp: ERROR unsupported hash\n");
-			return 0;
+			return -1;
 	}
-	return 1;
+	return 0;
 }
+
+static int _decrypt(gnrc_pktsnip_t *esp, const ipsec_sa_t *sa) {
+
+	/* On using DietESP: On en- and decryption some negotiated DietESP rules
+	need to be checked and minded for all ciphers, like e.g. Implicit IV */
+    uint8_t icv_size, iv_size, block_size;
+    size_t enc_len;
+    ipv6_esp_trl_t trl;
+    uint8_t *pld, *iv;
+    cipher_t cipher;
+    uint8_t data[2048]; // TODO
+
+	if (_calc_fields(sa, &iv_size, &icv_size, &block_size))
+        return -1;
+    iv = (uint8_t*)esp->data + sizeof(ipv6_esp_hdr_t);
+    pld = iv + iv_size;
+    enc_len = esp->size - sizeof(ipv6_esp_hdr_t) - iv_size - icv_size;
+    switch (sa->crypt_info.cipher)
+    {
+        case IPSEC_CIPHER_AES128_CBC:
+            if (cipher_init(&cipher, CIPHER_AES, sa->crypt_info.key, 16)!= CIPHER_INIT_SUCCESS)
+                return -1;
+
+            if (cipher_decrypt_cbc(&cipher, iv, pld, enc_len, data) < 0)
+                return -1;
+            break;
+        default:
+            return -1;
+    }
+    trl = *(ipv6_esp_trl_t*)((uint8_t*)esp->data + esp->size - icv_size - sizeof(ipv6_esp_trl_t));
+
+    (void) trl;
+	return 0;
+}
+
 gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum) {
 	gnrc_pktsnip_t *data_snip;
 	gnrc_pktsnip_t *new_ipv6;
