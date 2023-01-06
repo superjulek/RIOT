@@ -39,10 +39,10 @@ int spdb_init(void)
 int sasp_tmp_init(void)
 {
     ipsec_sp_t sp1 = {
-        .rule = IPSEC_SP_RULE_BYPASS,
-        .tun_dst_mask = 0,
-        .tun_src_mask = 0,
-        .proto = PROTNUM_ICMPV6,
+        .rule = IPSEC_SP_RULE_PROTECT,
+        .tun_dst_mask = 128,
+        .tun_src_mask = 128,
+        .proto = 0,
     };
     ipsec_sp_t sp2 = {
         .rule = IPSEC_SP_RULE_PROTECT,
@@ -50,23 +50,18 @@ int sasp_tmp_init(void)
         .tun_src_mask = 128,
         .proto = 0,
     };
-
-    ipv6_addr_from_str(&sp2.src, "aa::02");
-    ipv6_addr_from_str(&sp2.dst, "aa::01");
     ipsec_sp_t sp3 = {
-        .rule = IPSEC_SP_RULE_PROTECT,
-        .tun_dst_mask = 128,
-        .tun_src_mask = 128,
-        .proto = 0,
-    };
-
-    ipv6_addr_from_str(&sp3.src, "aa::01");
-    ipv6_addr_from_str(&sp3.dst, "aa::02");
-    ipsec_sp_t sp4 = {
         .rule = IPSEC_SP_RULE_BYPASS,
         .tun_dst_mask = 0,
         .tun_src_mask = 0,
+        .proto = 0,
     };
+
+    ipv6_addr_from_str(&sp1.tun_src, "aa::02");
+    ipv6_addr_from_str(&sp1.tun_dst, "aa::01");
+    ipv6_addr_from_str(&sp2.tun_src, "aa::01");
+    ipv6_addr_from_str(&sp2.tun_dst, "aa::02");
+
     ipsec_sa_t sa1 = {
         .spi = 0x12345678,
         .mode = IPSEC_MODE_TRANSPORT,
@@ -81,14 +76,32 @@ int sasp_tmp_init(void)
                           0x56, 0x78 },
         },
     };
+
     ipv6_addr_from_str(&sa1.src, "aa::01");
     ipv6_addr_from_str(&sa1.dst, "aa::02");
+    ipsec_sa_t sa2 = {
+        .spi = 0x12345679,
+        .mode = IPSEC_MODE_TRANSPORT,
+        .c_mode = IPSEC_CIPHER_MODE_ENC_AUTH,
+        .crypt_info = {
+            .cipher = IPSEC_CIPHER_AES128_CBC,
+            .hash = IPSEC_HASH_SHA1,
+            .key = { 0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12, 0x34,
+                     0x56, 0x78, 0x12, 0x34, 0x56, 0x78 },
+            .hash_key = { 0x12, 0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12,
+                          0x34, 0x56, 0x78, 0x12, 0x34, 0x56, 0x78, 0x12, 0x34,
+                          0x56, 0x78 },
+        },
+    };
+
+    ipv6_addr_from_str(&sa2.src, "aa::02");
+    ipv6_addr_from_str(&sa2.dst, "aa::02");
 
     add_sp(&sp1);
     add_sp(&sp2);
     add_sp(&sp3);
-    add_sp(&sp4);
     add_sa(&sa1);
+    add_sa(&sa2);
     return 0;
 }
 
@@ -160,7 +173,7 @@ int del_sp(uint32_t sp_idx)
     return -ENOENT;
 }
 
-int get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)
+int ipsec_get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)
 {
     internal_ipsec_sp_t *entry;
 
@@ -202,6 +215,42 @@ int ipsec_get_sa_by_spi(uint32_t spi, ipsec_sa_t *sa)
             memcpy(sa, &entry->sa_ext, sizeof(*sa));
             return 0;
         }
+    }
+    return -ENOENT;
+}
+
+
+uint64_t ipsec_inc_sn(uint32_t spi)
+{
+    internal_ipsec_sa_t *entry;
+
+    for (int i = 0; i < IPSEC_MAX_SA_NUM; ++i) {
+        entry = &sadb[i];
+        if (entry->set && entry->sa_ext.spi == spi) {
+            return ++(entry->sa_ext.sn);
+        }
+    }
+    return 0;
+
+}
+
+
+int ipsec_get_sa_by_ts(ipsec_ts_t *ts, ipsec_sa_t *sa)
+{
+    internal_ipsec_sa_t *entry;
+
+    for (int i = 0; i < IPSEC_MAX_SA_NUM; ++i) {
+        entry = &sadb[i];
+        if (ipv6_addr_match_prefix(&entry->sa_ext.tun_src, &ts->src)
+            < entry->sa_ext.tun_src_mask) {
+            continue;
+        }
+        if (ipv6_addr_match_prefix(&entry->sa_ext.tun_dst, &ts->dst)
+            < entry->sa_ext.tun_dst_mask) {
+            continue;
+        }
+        *sa = entry->sa_ext;
+        return 0;
     }
     return -ENOENT;
 }

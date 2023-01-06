@@ -30,11 +30,10 @@ static void *_event_loop(void *args);
 
 ipsec_sp_rule_t ipsec_get_policy_rule(ipsec_ts_t *ts, ipsec_traffic_dir_t dir)
 {
-    (void) dir;
+    (void)dir;
     ipsec_sp_t sp;
 
-    if (get_sp_by_ts(ts, &sp) < 0)
-    {
+    if (ipsec_get_sp_by_ts(ts, &sp) < 0) {
         DEBUG("ipv6_ipsec: No SPD policy for this packet found\n");
         return IPSEC_SP_RULE_DROP;
     }
@@ -61,9 +60,10 @@ kernel_pid_t gnrc_opv6_ipsec_get_pid(void)
     return _pid;
 }
 
-// TODO: Move to ESP c file
-static gnrc_pktsnip_t *build_esp_data(uint8_t *data, size_t data_len, uint8_t nh)
-{
+/*
+   // TODO: Move to ESP c file
+   static gnrc_pktsnip_t *build_esp_data(uint8_t *data, size_t data_len, uint8_t nh)
+   {
     uint32_t spi = 0x12345678;
     static uint32_t seq = 0;
     size_t encrypted_data_len, icv_len, total_len;
@@ -72,10 +72,6 @@ static gnrc_pktsnip_t *build_esp_data(uint8_t *data, size_t data_len, uint8_t nh
     gnrc_pktsnip_t *esp;
     esp_header_t *esp_header;
 
-    /**
-     * TODO:
-     * Do encryption and authentiaction
-     */
     encrypted_data = data;
     icv = NULL;
     encrypted_data_len = data_len;
@@ -95,10 +91,12 @@ static gnrc_pktsnip_t *build_esp_data(uint8_t *data, size_t data_len, uint8_t nh
     seq++;
     return esp;
 
-}
+   }
+ */
 
-static gnrc_pktsnip_t *encapsulate(gnrc_pktsnip_t *pkt)
-{
+/*
+   static gnrc_pktsnip_t *encapsulate(gnrc_pktsnip_t *pkt)
+   {
     ipv6_hdr_t *ipv6_hdr = gnrc_ipv6_get_header(pkt);
     gnrc_pktsnip_t *esp_data, *rest, *ipv6;
     uint8_t nh;
@@ -124,7 +122,8 @@ static gnrc_pktsnip_t *encapsulate(gnrc_pktsnip_t *pkt)
     ipv6 = gnrc_pkt_append(ipv6, esp_data);
     gnrc_pktbuf_release(rest);
     return pkt;
-}
+   }
+ */
 
 void gnrc_ipv6_ipsec_dispatch_recv(gnrc_pktsnip_t *pkt)
 {
@@ -193,8 +192,10 @@ static void _receive(gnrc_pktsnip_t *pkt)
 
 static void _send(gnrc_pktsnip_t *pkt)
 {
-    gnrc_pktsnip_t *tmp;
+    gnrc_pktsnip_t *encapsulated;
     gnrc_netif_t *netif;
+    ipsec_sa_t sa;
+    ipsec_ts_t ts;
 
     netif = gnrc_netif_hdr_get_netif(pkt->data);
 
@@ -218,22 +219,26 @@ static void _send(gnrc_pktsnip_t *pkt)
     }
 #endif
 
-    tmp = gnrc_pktbuf_start_write(pkt);
-
-    if (tmp == NULL) {
-        DEBUG("ipv6_ipsec: no space left in packet buffer\n");
+    if (ipsec_ts_from_pkt(pkt, &ts)) {
+        DEBUG("ipv6_ipsec: building traffic selector failed\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
-    pkt = tmp;
-    tmp = encapsulate(pkt);
-    if (tmp == NULL) {
+
+    if (ipsec_get_sa_by_ts(&ts, &sa)) {
+        DEBUG("ipv6_ipsec: no TX SA found\n");
+        gnrc_pktbuf_release(pkt);
+        return;
+    }
+
+    encapsulated = esp_header_build(pkt, &sa, &ts);
+    if (encapsulated == NULL) {
         DEBUG("ipv6_ipsec: payload encapsulation failed\n");
         gnrc_pktbuf_release(pkt);
         return;
     }
 
-    gnrc_ipv6_ipsec_dispatch_send(tmp);
+    gnrc_ipv6_ipsec_dispatch_send(encapsulated);
 }
 
 static void *_event_loop(void *args)

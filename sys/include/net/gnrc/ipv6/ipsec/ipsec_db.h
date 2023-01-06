@@ -45,11 +45,11 @@ typedef struct __attribute__((__packed__)) {
     uint8_t tun_dst_mask;       /**< tunnel selector destination prefix >*/
     ipv6_addr_t tun_src;        /**< tunnel selector source ipv6 address */
     uint8_t tun_src_mask;       /**< tunnel selector destination prefix >*/
-    uint8_t proto;                 /**< payloads IP protocoll number */
-    uint16_t dst_port;          /**< Traffic Selector(TS) destination port 
-                                number for UDP/TCP */  
-    uint16_t src_port;          /**< Traffic Selector(TS) source port number 
-                                for UDP/TCP */
+    uint8_t proto;              /**< payloads IP protocoll number */
+    uint16_t dst_port;          /**< Traffic Selector(TS) destination port
+                                   number for UDP/TCP */
+    uint16_t src_port;          /**< Traffic Selector(TS) source port number
+                                   for UDP/TCP */
     ipsec_sp_rule_t rule;       /**< firewall filter rule */
     ipsec_mode_t tun_mode;      /**< transport / tunnel */
     ipsec_cipher_mode_t c_mode; /**< cipher mode >*/
@@ -75,9 +75,13 @@ int del_sa(uint32_t spi);
 
 int del_sp(uint32_t sp_idx);
 
-int get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp);
+int ipsec_get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp);
 
 int ipsec_get_sa_by_spi(uint32_t spi, ipsec_sa_t *sa);
+
+int ipsec_get_sa_by_ts(ipsec_ts_t *ts, ipsec_sa_t *sa);
+
+uint64_t ipsec_inc_sn(uint32_t spi);
 
 #ifdef __cplusplus
 }
