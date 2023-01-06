@@ -49,7 +49,7 @@
 
 #include "net/gnrc/ipv6.h"
 
-#define ENABLE_DEBUG        0
+#define ENABLE_DEBUG        1
 #include "debug.h"
 
 #define _MAX_L2_ADDR_LEN    (8U)
@@ -900,12 +900,8 @@ static void _receive(gnrc_pktsnip_t *pkt)
     switch (ipsec_get_policy_rule(&ts, TRAFFIC_DIR_IN)) {
         case IPSEC_SP_RULE_PROTECT:
             /* Was processed in extension processing */
-            DEBUG("ipv6_ipsec: TX PROTECT\n");
-            if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_IPV6_EXT_ESP, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
-                DEBUG("ipv6_ipsec: no ESP thread found\n");
-                gnrc_pktbuf_release(pkt);
-            }
-            return;
+            DEBUG("ipv6_ipsec: RX PROTECT\n");
+            break;
         case IPSEC_SP_RULE_DROP:
             DEBUG("ipv6_ipsec: RX DROP\n");
             gnrc_pktbuf_release(pkt);
