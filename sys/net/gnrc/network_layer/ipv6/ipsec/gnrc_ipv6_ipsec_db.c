@@ -66,6 +66,8 @@ int sasp_tmp_init(void)
         .spi = 0x12345678,
         .mode = IPSEC_MODE_TRANSPORT,
         .c_mode = IPSEC_CIPHER_MODE_ENC_AUTH,
+        .tun_src_mask = 128,
+        .tun_dst_mask = 128,
         .crypt_info = {
             .cipher = IPSEC_CIPHER_AES128_CBC,
             .hash = IPSEC_HASH_SHA1,
@@ -79,10 +81,15 @@ int sasp_tmp_init(void)
 
     ipv6_addr_from_str(&sa1.src, "aa::01");
     ipv6_addr_from_str(&sa1.dst, "aa::02");
+    ipv6_addr_from_str(&sa1.tun_src, "aa::01");
+    ipv6_addr_from_str(&sa1.tun_dst, "aa::02");
+
     ipsec_sa_t sa2 = {
         .spi = 0x12345679,
         .mode = IPSEC_MODE_TRANSPORT,
         .c_mode = IPSEC_CIPHER_MODE_ENC_AUTH,
+        .tun_src_mask = 128,
+        .tun_dst_mask = 128,
         .crypt_info = {
             .cipher = IPSEC_CIPHER_AES128_CBC,
             .hash = IPSEC_HASH_SHA1,
@@ -95,7 +102,9 @@ int sasp_tmp_init(void)
     };
 
     ipv6_addr_from_str(&sa2.src, "aa::02");
-    ipv6_addr_from_str(&sa2.dst, "aa::02");
+    ipv6_addr_from_str(&sa2.dst, "aa::01");
+    ipv6_addr_from_str(&sa2.tun_src, "aa::02");
+    ipv6_addr_from_str(&sa2.tun_dst, "aa::01");
 
     add_sp(&sp1);
     add_sp(&sp2);

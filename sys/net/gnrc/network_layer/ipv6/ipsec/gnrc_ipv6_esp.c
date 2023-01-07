@@ -5,6 +5,8 @@
 #include "crypto/aes.h"
 #include "hashes/sha1.h"
 #include "crypto/modes/cbc.h"
+#include "random.h"
+#include "hashes/sha1.h"
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
@@ -97,8 +99,51 @@ static int _decrypt(gnrc_pktsnip_t *esp, const ipsec_sa_t *sa)
 
 static int _encrypt(gnrc_pktsnip_t *esp, const ipsec_sa_t *sa)
 {
-    (void)esp;
-    (void)sa;
+    uint8_t *iv, *icv, *pld;
+    uint8_t iv_size, icv_size, block_size;
+    size_t pld_len;
+    cipher_t cipher;
+    sha1_context hash;
+    uint8_t data[ENCRYPTION_BUFFER_SIZE];
+
+    _calc_fields(sa, &iv_size, &icv_size, &block_size);
+    iv = (uint8_t *)esp->data + sizeof(ipv6_esp_hdr_t);
+    random_bytes(iv, iv_size);
+    pld = iv + iv_size;
+    icv = (uint8_t *)esp->data + esp->size - icv_size;
+    pld_len = esp->size - sizeof(ipv6_esp_hdr_t) - iv_size - icv_size;
+    switch (sa->crypt_info.cipher) {
+    case IPSEC_CIPHER_AES128_CBC:
+        if (cipher_init(&cipher, CIPHER_AES, sa->crypt_info.key, 16) != CIPHER_INIT_SUCCESS) {
+            DEBUG("ipv6_esp: Failed to initialize cipher\n");
+            return -1;
+        }
+
+        if (cipher_encrypt_cbc(&cipher, iv, pld, pld_len, data) < 0) {
+            DEBUG("ipv6_esp: Failed to decrypt\n");
+            return -1;
+        }
+        memcpy(pld, data, pld_len);
+        /* code */
+        break;
+
+    default:
+        DEBUG("ipv6_esp: Unsupported cipher encryption\n");
+        return 0;
+    }
+    switch (sa->crypt_info.hash) {
+    case IPSEC_HASH_SHA1:
+        sha1_init_hmac(&hash, sa->crypt_info.hash_key, 32);
+        sha1_update(&hash, esp->data, esp->size - icv_size);
+        sha1_final_hmac(&hash, data);
+        memcpy(icv, data, icv_size);
+        /* code */
+        break;
+
+    default:
+        DEBUG("ipv6_esp: Unsupported hmac encryption\n");
+        return 0;
+    }
     return 0;
 }
 
@@ -216,7 +261,7 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
     LL_SEARCH_SCALAR(pkt, ipv6, type, GNRC_NETTYPE_IPV6);
     if (ipv6 == NULL) {
         DEBUG("ipsec_esp: ERROR No IPv6 header found\n");
-        gnrc_pktbuf_release(pkt);
+        return NULL;
     }
     ipv6_h = ipv6->data;
     nh = ts->proto;
@@ -250,14 +295,13 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
     esp = gnrc_pktbuf_add(NULL, NULL, esp_size, GNRC_NETTYPE_IPV6_EXT_ESP);
     if (esp == NULL) {
         DEBUG("ipsec_esp: could not add pkt tp buffer\n");
-        gnrc_pktbuf_release(pkt);
         return NULL;
     }
     esp_h = esp->data;
     sn = ipsec_inc_sn(sa->spi);
     if (!sn) {
         DEBUG("ipsec_esp: sequence number incrementation rejected\n");
-        gnrc_pktbuf_release(pkt);
+        gnrc_pktbuf_release(esp);
         return NULL;
     }
     esp_h->sn = byteorder_htonl(sn);
@@ -290,7 +334,10 @@ gnrc_pktsnip_t *esp_header_build(gnrc_pktsnip_t *pkt,
 
     switch (sa->c_mode) {
     case IPSEC_CIPHER_MODE_ENC_AUTH:
-        _encrypt(esp, sa);
+        if (_encrypt(esp, sa)) {
+            DEBUG("ipsec_esp: ERROR encrytping packet\n");
+            return NULL;
+        }
         break;
     default:
         DEBUG("ipsec_esp: ERROR Cypher mode not supported\n");
