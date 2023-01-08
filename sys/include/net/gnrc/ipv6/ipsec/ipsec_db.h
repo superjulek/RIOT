@@ -53,6 +53,7 @@ typedef struct __attribute__((__packed__)) {
     ipsec_sp_rule_t rule;       /**< firewall filter rule */
     ipsec_mode_t tun_mode;      /**< transport / tunnel */
     ipsec_cipher_mode_t c_mode; /**< cipher mode >*/
+    uint8_t prio;               /* priority */
 } ipsec_sp_t;
 
 
