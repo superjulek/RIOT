@@ -463,10 +463,18 @@ static int _build_init_i(char *msg, size_t *msg_len)
     cur_len += sizeof(hdr);
 
     /* Construct SA payload */
-    error = build_sa_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NONCE,
+    error = build_sa_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NOTIFY,
                              IKE_PROTO_IKE, ike_ctx.ike_encr,
                              ike_ctx.ike_prf, ike_ctx.ike_integ, ike_ctx.ike_dh, ike_ctx.ike_esn,
                              ike_ctx.ike_key_size, empty_chunk);
+    if (error < 0) {
+        return error;
+    }
+    cur_len += new_len;
+
+    /* Construct Initial Contact Notify payload */
+    error = build_notify_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len, IKE_PT_NONCE, 0,
+                                 IKE_NOTIFY_TYPE_INITIAL_CONTACT, empty_chunk, empty_chunk);
     if (error < 0) {
         return error;
     }
@@ -629,8 +637,17 @@ static int _build_auth_i(char *msg, size_t *msg_len)
         return error;
     }
     error = build_auth_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len,
-                               IKE_PT_SECURITY_ASSOCIATION, IKE_AUTH_METHOD_PSK, authed_data);
+                               IKE_PT_NOTIFY, IKE_AUTH_METHOD_PSK, authed_data);
     free_chunk(&authed_data);
+    if (error < 0) {
+        return error;
+    }
+    cur_len += new_len;
+
+    /* Construct Use Transpor Mode Notify payload */
+    error = build_notify_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len,
+                                 IKE_PT_SECURITY_ASSOCIATION, 0,
+                                 IKE_NOTIFY_TYPE_USE_TRANSPORT_MODE, empty_chunk, empty_chunk);
     if (error < 0) {
         return error;
     }
