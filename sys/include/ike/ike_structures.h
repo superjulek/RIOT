@@ -115,7 +115,10 @@ typedef enum {
     IKE_TRANSFORM_ATTRIBUTE_KEYLEN = 14,
 } ike_transform_attribute_type_t;
 
-
+typedef enum {
+	IKE_NOTIFY_TYPE_INITIAL_CONTACT = 16384,
+    IKE_NOTIFY_TYPE_USE_TRANSPORT_MODE = 16391,
+} ike_notify_type_t;
 
 
 typedef struct __attribute__((packed)) {

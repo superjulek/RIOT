@@ -37,7 +37,8 @@
         "tests-hashes.h": "c",
         "sha1.h": "c",
         "ciphers.h": "c",
-        "cbc.h": "c"
+        "cbc.h": "c",
+        "ike_payloads.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
