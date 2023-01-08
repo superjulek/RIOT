@@ -207,13 +207,29 @@ int process_sa_payload(char *start, size_t max_len, size_t *cur_len,
     (void)dh;       /* Unused parameter */
     (void)esn;      /* Unused parameter */
     (void)key_size; /* Unused parameter */
-    (void)spi;      /* Unused parameter */
+
+    ike_proposal_substructure_const_t *ph;
+    size_t remaining_len;
+    uint8_t *spi_pld;
 
     int ret = process_generic_payload_header(start, max_len, cur_len, next_payload);
 
     if (ret < 0) {
         return ret;
     }
+    remaining_len = *cur_len - sizeof(ike_generic_payload_header_t);
+
+    if (remaining_len < sizeof(ike_proposal_substructure_const_t)) {
+        return -1;
+    }
+    ph = (ike_proposal_substructure_const_t*)(start + sizeof(ike_generic_payload_header_t));
+    remaining_len -= sizeof(ike_proposal_substructure_const_t);
+    if (ph->spi_size > remaining_len || ph->spi_size > spi->len) {
+        return -1;
+    }
+    spi_pld = (uint8_t*)ph + sizeof(ike_proposal_substructure_const_t);
+    memcpy(spi->ptr, spi_pld, ph->spi_size);
+
     // TODO
     return 0;
 }

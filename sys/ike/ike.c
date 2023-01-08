@@ -14,6 +14,7 @@
 #include "ike/ike_structures.h"
 #include "ike/chunk.h"
 #include "ike/ike_payloads.h"
+#include "ike/ike_kernel_iface.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -87,6 +88,10 @@ typedef struct {
         ike_id_type_t type;
         chunk_t id;
     } remote_id;
+    ipv6_addr_t local_ip;
+    ipv6_addr_t remote_ip;
+    uint32_t sp_in_idx;
+    uint32_t sp_out_idx;
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
@@ -187,6 +192,7 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
         puts("Error: unable to parse destination address");
         return -1;
     }
+    ike_ctx.remote_ip = addr;
 
     gnrc_pktsnip_t *payload, *udp, *ip;
     unsigned payload_size;
@@ -233,6 +239,14 @@ static void _process_incoming(gnrc_pktsnip_t *pkt, chunk_t *recv_chunk)
     int snips = 0;
     int size = 0;
     gnrc_pktsnip_t *snip = pkt;
+    ipv6_hdr_t *ipv6_hdr = gnrc_ipv6_get_header(pkt);
+
+    if (ipv6_hdr->src.u64[0].u64 != ike_ctx.remote_ip.u64[0].u64 ||
+        ipv6_hdr->src.u64[1].u64 != ike_ctx.remote_ip.u64[1].u64) {
+        puts("Received packet from other host\n");
+        return;
+    }
+    ike_ctx.local_ip = ipv6_hdr->dst;
 
     // int address_ok = false;
     // uint64_t src_port = 0;
@@ -364,6 +378,7 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
 static int _reset_context(void)
 {
     puts("Resetting IKE context");
+    clear_esp(ike_ctx.child_spi_i, ike_ctx.child_spi_r, ike_ctx.sp_in_idx, ike_ctx.sp_out_idx);
     ike_ctx.state = IKE_STATE_OFF;
     ike_ctx.ike_spi_i = 0;
     ike_ctx.ike_spi_r = 0;
@@ -435,6 +450,8 @@ static int _init_context(void)
         .ike_esn = IKE_TRANSFORM_ESN_OFF,
         .id_i = id_i,
         .psk = psk,
+        .sp_in_idx = -1,
+        .sp_out_idx = -1,
     };
 
     ike_ctx = new_ike_ctx;
@@ -546,7 +563,7 @@ static int _parse_init_r(char *msg, size_t msg_len)
             break;
         case IKE_PT_SECURITY_ASSOCIATION:
             if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL,
-                                   NULL, NULL, NULL, NULL, NULL) < 0) {
+                                   NULL, NULL, NULL, NULL, &empty_chunk) < 0) {
                 puts("Nonce payload parsing failed");
                 return -1;
             }
@@ -756,11 +773,15 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     while (remaining_len > 0) {
         switch (next_type) {
         case IKE_PT_SECURITY_ASSOCIATION:
+            {}
+            uint32_t spi;
+            chunk_t n_spi = {.ptr = (char*)&spi, .len = sizeof(spi)};
             if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL,
-                                   NULL, NULL, NULL, NULL, NULL) < 0) {
+                                   NULL, NULL, NULL, NULL, &n_spi) < 0) {
                 puts("SA payload parsing failed");
                 return -1;
             }
+            ike_ctx.child_spi_r = ntohl(spi);
             break;
         case IKE_PT_IDENTIFICATION_R:
             if (process_identification_payload(p, remaining_len, &cur_len, &next_type,
@@ -886,6 +907,12 @@ static int _generate_child_key(void)
     puts("Integrity Responder");
     printf_chunk(int_r, 8);
     free_chunk(&out);
+    if (install_esp(int_i, int_r, enc_i, enc_r, ike_ctx.local_ip, ike_ctx.remote_ip,
+                    ike_ctx.child_spi_i, ike_ctx.child_spi_r, (int*)&ike_ctx.sp_in_idx,
+                    (int*)&ike_ctx.sp_out_idx)) {
+        puts("Failed to install SA in kernel database");
+        return -1;
+    }
     return 0;
 }
 static int _generate_key(void)
