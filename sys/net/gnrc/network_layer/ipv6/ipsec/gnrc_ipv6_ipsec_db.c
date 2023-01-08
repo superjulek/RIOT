@@ -43,18 +43,37 @@ int sasp_tmp_init(void)
         .tun_dst_mask = 128,
         .tun_src_mask = 128,
         .proto = 0,
+        .prio = 10,
     };
     ipsec_sp_t sp2 = {
         .rule = IPSEC_SP_RULE_PROTECT,
         .tun_dst_mask = 128,
         .tun_src_mask = 128,
         .proto = 0,
+        .prio = 10,
     };
     ipsec_sp_t sp3 = {
         .rule = IPSEC_SP_RULE_BYPASS,
         .tun_dst_mask = 0,
         .tun_src_mask = 0,
         .proto = 0,
+        .prio = 10,
+    };
+    ipsec_sp_t sp4 = {
+        .rule = IPSEC_SP_RULE_BYPASS,
+        .tun_dst_mask = 0,
+        .tun_src_mask = 0,
+        .dst_port = 500,
+        .proto = 0,
+        .prio = 5,
+    };
+    ipsec_sp_t sp5 = {
+        .rule = IPSEC_SP_RULE_BYPASS,
+        .tun_dst_mask = 0,
+        .tun_src_mask = 0,
+        .dst_port = 4500,
+        .proto = 0,
+        .prio = 5,
     };
 
     ipv6_addr_from_str(&sp1.tun_src, "aa::02");
@@ -109,6 +128,8 @@ int sasp_tmp_init(void)
     add_sp(&sp1);
     add_sp(&sp2);
     add_sp(&sp3);
+    add_sp(&sp4);
+    add_sp(&sp5);
     add_sa(&sa1);
     add_sa(&sa2);
     return 0;
@@ -184,7 +205,8 @@ int del_sp(uint32_t sp_idx)
 
 int ipsec_get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)
 {
-    internal_ipsec_sp_t *entry;
+    internal_ipsec_sp_t *entry, *best = NULL;
+    uint16_t best_prio = 256;
 
     for (int i = 0; i < IPSEC_MAX_SP_NUM; ++i) {
         entry = &spdb[i];
@@ -208,7 +230,15 @@ int ipsec_get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)
             < entry->sp_ext.tun_dst_mask) {
             continue;
         }
-        *sp = entry->sp_ext;
+        if (entry->sp_ext.prio < best_prio)
+        {
+            best_prio = entry->sp_ext.prio;
+            best = entry;
+        }
+    }
+    if (best)
+    {
+        *sp = best->sp_ext;
         return 0;
     }
     return -ENOENT;

@@ -49,7 +49,7 @@
 
 #include "net/gnrc/ipv6.h"
 
-#define ENABLE_DEBUG        1
+#define ENABLE_DEBUG        0
 #include "debug.h"
 
 #define _MAX_L2_ADDR_LEN    (8U)

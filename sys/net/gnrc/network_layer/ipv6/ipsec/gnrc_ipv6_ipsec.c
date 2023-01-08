@@ -14,7 +14,7 @@
 #include "net/esp.h"
 #include "net/gnrc/ipv6/ext.h"
 
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
 static kernel_pid_t _pid = KERNEL_PID_UNDEF;
