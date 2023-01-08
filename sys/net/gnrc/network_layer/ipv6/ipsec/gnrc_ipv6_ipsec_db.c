@@ -57,7 +57,7 @@ int sasp_tmp_init(void)
         .tun_dst_mask = 0,
         .tun_src_mask = 0,
         .proto = 0,
-        .prio = 10,
+        .prio = 20,
     };
     ipsec_sp_t sp4 = {
         .rule = IPSEC_SP_RULE_BYPASS,
@@ -76,8 +76,12 @@ int sasp_tmp_init(void)
         .prio = 5,
     };
 
+    ipv6_addr_from_str(&sp1.src, "aa::02");
+    ipv6_addr_from_str(&sp1.dst, "aa::01");
     ipv6_addr_from_str(&sp1.tun_src, "aa::02");
     ipv6_addr_from_str(&sp1.tun_dst, "aa::01");
+    ipv6_addr_from_str(&sp2.src, "aa::01");
+    ipv6_addr_from_str(&sp2.dst, "aa::02");
     ipv6_addr_from_str(&sp2.tun_src, "aa::01");
     ipv6_addr_from_str(&sp2.tun_dst, "aa::02");
 
@@ -125,13 +129,13 @@ int sasp_tmp_init(void)
     ipv6_addr_from_str(&sa2.tun_src, "aa::02");
     ipv6_addr_from_str(&sa2.tun_dst, "aa::01");
 
-    add_sp(&sp1);
-    add_sp(&sp2);
+    //add_sp(&sp1);
+    //add_sp(&sp2);
     add_sp(&sp3);
     add_sp(&sp4);
     add_sp(&sp5);
-    add_sa(&sa1);
-    add_sa(&sa2);
+    //add_sa(&sa1);
+    //add_sa(&sa2);
     return 0;
 }
 
@@ -166,7 +170,7 @@ int add_sp(ipsec_sp_t *sp)
         if (entry->set == 0) {
             entry->sp_ext = *sp;
             entry->set = 1;
-            return 0;
+            return i;
         }
     }
     return -ENOMEM;
@@ -200,7 +204,7 @@ int del_sp(uint32_t sp_idx)
     }
     entry->set = 0;
     entry->sp_ext = (ipsec_sp_t){ 0 };
-    return -ENOENT;
+    return 0;
 }
 
 int ipsec_get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)

@@ -22,7 +22,7 @@ static int _calc_fields(const ipsec_sa_t *sa, uint8_t *iv_size, uint8_t *icv_siz
 
     switch (sa->crypt_info.cipher) {
     case IPSEC_CIPHER_AES128_CBC:
-        *block_size = 4;
+        *block_size = 16;
         *iv_size = 16;
         break;
     default:
@@ -120,7 +120,7 @@ static int _encrypt(gnrc_pktsnip_t *esp, const ipsec_sa_t *sa)
         }
 
         if (cipher_encrypt_cbc(&cipher, iv, pld, pld_len, data) < 0) {
-            DEBUG("ipv6_esp: Failed to decrypt\n");
+            DEBUG("ipv6_esp: Failed to encrypt\n");
             return -1;
         }
         memcpy(pld, data, pld_len);
