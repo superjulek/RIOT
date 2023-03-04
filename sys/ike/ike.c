@@ -418,7 +418,7 @@ static int _init_context(void)
     random_bytes((uint8_t *)&ike_spi_i, sizeof(uint64_t));
     printf("New IKE initiator SPI: 0x%llX\n", ike_spi_i);
     random_bytes((uint8_t *)&child_spi_i, sizeof(uint32_t));
-    printf("New IKE initiator SPI: 0x%X\n", child_spi_i);
+    printf("New Child initiator SPI: 0x%lX\n", child_spi_i);
 
     chunk_t ike_nonce_i = malloc_chunk(IKE_NONCE_I_LEN);
 
@@ -766,9 +766,8 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     char *p = msg;
     size_t cur_len;
     chunk_t idx = empty_chunk;
-    chunk_t auth_data_recv = { .len = HASH_SIZE_SHA1 };
-
-    auth_data_recv.ptr = alloca(auth_data_recv.len);
+    uint8_t auth_data_recv_buff[HASH_SIZE_SHA1];
+    chunk_t auth_data_recv = chunk_from_buff(auth_data_recv_buff);
 
     while (remaining_len > 0) {
         switch (next_type) {
@@ -790,8 +789,14 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
                 puts("ID payload parsing failed");
                 return -1;
             }
+            uint8_t idx_buff[MAX_IKE_MESSAGE_SIZE];
             idx.len = cur_len - sizeof(ike_generic_payload_header_t);
-            idx.ptr = alloca(idx.len);
+            if (idx.len > countof(idx_buff))
+            {
+                puts("IDX too long");
+                return -1;
+            }
+            idx.ptr = (char*)idx_buff;
             memcpy(idx.ptr, p + sizeof(ike_generic_payload_header_t), idx.len);
             printf("Received ID (%d):\n", ike_ctx.remote_id.type);
             printf_chunk(ike_ctx.remote_id.id, 8);
@@ -850,7 +855,13 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     chunk_t auth_data =
     { .len = (ike_ctx.real_message_2.len + ike_ctx.ike_nonce_i.len + HASH_SIZE_SHA1) };
 
-    auth_data.ptr = alloca(auth_data.len);
+    uint8_t auth_data_buff[MAX_IKE_MESSAGE_SIZE + MAX_NONCE_SIZE + HASH_SIZE_SHA1];
+    if (auth_data.len > countof(auth_data_buff))
+    {
+        puts("Auth data too long");
+        return -1;
+    }
+    auth_data.ptr = (char*)auth_data_buff;
     chunk_t maced_id;
 
     if (_prf(ike_ctx.sk_pr, idx, &maced_id) < 0) {
@@ -875,15 +886,25 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
 
 static int _generate_child_key(void)
 {
-    chunk_t enc_i = { .len = 16, .ptr = alloca(16) };
-    chunk_t int_i = { .len = 20, .ptr = alloca(20) };
-    chunk_t enc_r = { .len = 16, .ptr = alloca(16) };
-    chunk_t int_r = { .len = 20, .ptr = alloca(20) };
+    uint8_t enc_i_buff[16];
+    uint8_t int_i_buff[20];
+    uint8_t enc_r_buff[16];
+    uint8_t int_r_buff[20];
+    uint8_t nonces_buff[MAX_NONCE_SIZE*2];
+    chunk_t enc_i = chunk_from_buff(enc_i_buff);
+    chunk_t int_i = chunk_from_buff(int_i_buff);
+    chunk_t enc_r = chunk_from_buff(enc_r_buff);
+    chunk_t int_r = chunk_from_buff(int_r_buff);
     chunk_t parts[] = { enc_i, int_i, enc_r, int_r };
     chunk_t nonces = { .len = ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len };
     chunk_t out;
+    if (nonces.len > countof(nonces_buff))
+    {
+        puts("Nonces too big");
+        return -1;
+    }
 
-    nonces.ptr = alloca(nonces.len);
+    nonces.ptr = (char*)nonces_buff;
     memcpy(nonces.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
     memcpy(nonces.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
     if (_prf_plus(ike_ctx.sk_d, nonces, 72, &out) < 0) {
@@ -917,7 +938,7 @@ static int _generate_child_key(void)
 }
 static int _generate_key(void)
 {
-    const u_char p[] =
+    const unsigned char p[] =
     { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2,
       0x34,
       0xC4, 0xC6, 0x62, 0x8B, 0x80, 0xDC, 0x1C, 0xD1, 0x29, 0x02, 0x4E, 0x08,
@@ -950,7 +971,7 @@ static int _generate_key(void)
       0x98, 0xFA, 0x05, 0x10,
       0x15, 0x72, 0x8E, 0x5A, 0x8A, 0xAC, 0xAA, 0x68, 0xFF, 0xFF, 0xFF, 0xFF,
       0xFF, 0xFF, 0xFF, 0xFF };
-    const u_char g[] = { 0x02 };
+    const unsigned char g[] = { 0x02 };
 
     ike_ctx.pubkey_i = malloc_chunk(256);
     ike_ctx.privkey_i = malloc_chunk(29);
@@ -967,9 +988,9 @@ static int _generate_key(void)
         wc_FreeDhKey(&ike_ctx.wc_priv_key);
         return -1;
     }
-    if (wc_DhGenerateKeyPair(&ike_ctx.wc_priv_key, &ike_ctx.wc_rng, (u_char *)ike_ctx.privkey_i.ptr,
+    if (wc_DhGenerateKeyPair(&ike_ctx.wc_priv_key, &ike_ctx.wc_rng, (unsigned char *)ike_ctx.privkey_i.ptr,
                              &ike_ctx.privkey_i.len,
-                             (u_char *)ike_ctx.pubkey_i.ptr, &ike_ctx.pubkey_i.len) != 0) {
+                             (unsigned char *)ike_ctx.pubkey_i.ptr, &ike_ctx.pubkey_i.len) != 0) {
         wc_FreeRng(&ike_ctx.wc_rng);
         wc_FreeDhKey(&ike_ctx.wc_priv_key);
         return -1;
@@ -986,9 +1007,9 @@ static int _get_secrets(void)
     ike_ctx.shared_secret = malloc_chunk(ike_ctx.pubkey_i.len);
     word32 len;
 
-    if (wc_DhAgree(&ike_ctx.wc_priv_key, (u_char *)ike_ctx.shared_secret.ptr, &len,
-                   (u_char *)ike_ctx.privkey_i.ptr, ike_ctx.privkey_i.len,
-                   (u_char *)ike_ctx.pubkey_r.ptr, ike_ctx.pubkey_r.len) != 0) {
+    if (wc_DhAgree(&ike_ctx.wc_priv_key, (unsigned char *)ike_ctx.shared_secret.ptr, &len,
+                   (unsigned char *)ike_ctx.privkey_i.ptr, ike_ctx.privkey_i.len,
+                   (unsigned char *)ike_ctx.pubkey_r.ptr, ike_ctx.pubkey_r.len) != 0) {
         puts("Getting shared secret failed");
         return -1;
     }
@@ -1056,7 +1077,7 @@ static int _get_secrets(void)
     };
     char *p = crypto_concat.ptr;
 
-    for (u_int i = 0; i < sizeof(parts) / sizeof(*parts); ++i) {
+    for (unsigned int i = 0; i < sizeof(parts) / sizeof(*parts); ++i) {
         chunk_t *part = parts[i];
         memcpy(part->ptr, p, part->len);
         p += part->len;
@@ -1093,14 +1114,14 @@ static int _prf(chunk_t key, chunk_t seed, chunk_t *out)
     if (wc_HmacInit(&hmac, NULL, INVALID_DEVID) != 0) {
         return -1;
     }
-    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (u_char *)key.ptr, key.len) != 0) {
+    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (unsigned char *)key.ptr, key.len) != 0) {
         return -1;
     }
-    if (wc_HmacUpdate(&hmac, (u_char *)seed.ptr, seed.len) != 0) {
+    if (wc_HmacUpdate(&hmac, (unsigned char *)seed.ptr, seed.len) != 0) {
         return -1;
     }
     *out = malloc_chunk(HASH_SIZE_SHA1);
-    if (wc_HmacFinal(&hmac, (u_char *)out->ptr) != 0) {
+    if (wc_HmacFinal(&hmac, (unsigned char *)out->ptr) != 0) {
         free_chunk(out);
         return -1;
     }

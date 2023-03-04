@@ -30,6 +30,7 @@ typedef struct {
     char *ptr;
 } chunk_t;
 
+#define chunk_from_buff(buff) {.len = countof(buff), .ptr = (char*)buff}
 
 void free_chunk(chunk_t *chunk);
 

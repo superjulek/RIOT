@@ -39,7 +39,8 @@
         "ciphers.h": "c",
         "cbc.h": "c",
         "ike_payloads.h": "c",
-        "ike_kernel_iface.h": "c"
+        "ike_kernel_iface.h": "c",
+        "ike.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
