@@ -26,6 +26,9 @@ extern "C"
 #define HMAC_SIZE_SHA1_96 12
 #define KEY_SIZE_SHA1 20
 
+#define MAX_IKE_MESSAGE_SIZE 1280
+#define MAX_NONCE_SIZE 256
+
 #define countof(t) sizeof(t)/sizeof(*t)
 
     typedef enum

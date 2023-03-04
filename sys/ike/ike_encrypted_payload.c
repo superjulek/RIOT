@@ -119,12 +119,12 @@ static int _encrypt(chunk_t in, chunk_t *out, chunk_t key, chunk_t iv)
     int ret = 0;
     if (wc_AesInit(&aes, NULL, INVALID_DEVID) != 0)
         return -1;
-    if (wc_AesSetKey(&aes, (u_char *)key.ptr, key.len, (u_char *)iv.ptr, AES_ENCRYPTION) != 0)
+    if (wc_AesSetKey(&aes, (unsigned char *)key.ptr, key.len, (unsigned char *)iv.ptr, AES_ENCRYPTION) != 0)
     {
         ret = -1;
         goto exit;
     }
-    if (wc_AesCbcEncrypt(&aes, (u_char *)out->ptr, (u_char *)in.ptr, in.len) != 0)
+    if (wc_AesCbcEncrypt(&aes, (unsigned char *)out->ptr, (unsigned char *)in.ptr, in.len) != 0)
     {
         ret = -1;
         goto exit;
@@ -141,12 +141,12 @@ static int _decrypt(chunk_t in, chunk_t *out, chunk_t key, chunk_t iv)
     int ret = 0;
     if (wc_AesInit(&aes, NULL, INVALID_DEVID) != 0)
         return -1;
-    if (wc_AesSetKey(&aes, (u_char *)key.ptr, key.len, (u_char *)iv.ptr, AES_DECRYPTION) != 0)
+    if (wc_AesSetKey(&aes, (unsigned char *)key.ptr, key.len, (unsigned char *)iv.ptr, AES_DECRYPTION) != 0)
     {
         ret = -1;
         goto exit;
     }
-    if (wc_AesCbcDecrypt(&aes, (u_char *)out->ptr, (u_char *)in.ptr, in.len) != 0)
+    if (wc_AesCbcDecrypt(&aes, (unsigned char *)out->ptr, (unsigned char *)in.ptr, in.len) != 0)
     {
         ret = -1;
         goto exit;
@@ -163,17 +163,17 @@ static int _sign(chunk_t in, chunk_t *out, chunk_t key)
     int ret = 0;
     if (wc_HmacInit(&hmac, NULL, INVALID_DEVID) != 0)
         return -1;
-    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (u_char *)key.ptr, key.len) != 0)
+    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (unsigned char *)key.ptr, key.len) != 0)
     {
         ret = -1;
         goto exit;
     }
-    if (wc_HmacUpdate(&hmac, (u_char *)in.ptr, in.len) != 0)
+    if (wc_HmacUpdate(&hmac, (unsigned char *)in.ptr, in.len) != 0)
     {
         ret = -1;
         goto exit;
     }
-    if (wc_HmacFinal(&hmac, (u_char *)out->ptr) != 0)
+    if (wc_HmacFinal(&hmac, (unsigned char *)out->ptr) != 0)
     {
         ret = -1;
         goto exit;
