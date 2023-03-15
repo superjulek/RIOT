@@ -91,7 +91,7 @@ int process_encrypted_payload(char *start, size_t max_len, size_t *cur_len, ike_
     chunk_t ivc = (chunk_t){.len = AES_BLOCK_SIZE, .ptr = start + sizeof(ike_generic_payload_header_t)};
     chunk_t dec_in = {
         .ptr = start + sizeof(ike_generic_payload_header_t) + AES_BLOCK_SIZE,
-        .len = *cur_len - sizeof(ike_exchange_type_t) - AES_BLOCK_SIZE - HMAC_SIZE_SHA1_96,
+        .len = *cur_len - sizeof(ike_generic_payload_header_t) - AES_BLOCK_SIZE - HMAC_SIZE_SHA1_96,
     };
     *dec_data = malloc_chunk(dec_in.len);
     int error = _decrypt(dec_in, dec_data, ekey, ivc);

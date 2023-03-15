@@ -40,8 +40,8 @@ USEMODULE += wolfssl_dtls
 USEMODULE += wolfcrypt_rsa wolfcrypt_dh
 USEMODULE += wolfssl_psk
 
-#CFLAGS_OPT = -O0 -ggdb
-CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(10*THREAD_STACKSIZE_DEFAULT\)
+CFLAGS_OPT = -Og# -ggdb
+CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(20*THREAD_STACKSIZE_DEFAULT\)
 
 # Optionally include DNS support. This includes resolution of names at an
 # upstream DNS server and the handling of RDNSS options in Router Advertisements

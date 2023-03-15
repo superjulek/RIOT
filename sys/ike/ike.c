@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/dh.h>
@@ -416,9 +417,9 @@ static int _init_context(void)
     uint32_t child_spi_i;
 
     random_bytes((uint8_t *)&ike_spi_i, sizeof(uint64_t));
-    printf("New IKE initiator SPI: 0x%llX\n", ike_spi_i);
+    printf("New IKE initiator SPI: 0x%" "llX" "\n", ike_spi_i);
     random_bytes((uint8_t *)&child_spi_i, sizeof(uint32_t));
-    printf("New Child initiator SPI: 0x%lX\n", child_spi_i);
+    printf("New Child initiator SPI: 0x%" PRIX32 "\n", child_spi_i);
 
     chunk_t ike_nonce_i = malloc_chunk(IKE_NONCE_I_LEN);
 
@@ -767,6 +768,7 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     size_t cur_len;
     chunk_t idx = empty_chunk;
     uint8_t auth_data_recv_buff[HASH_SIZE_SHA1];
+    uint8_t idx_buff[MAX_IKE_MESSAGE_SIZE];
     chunk_t auth_data_recv = chunk_from_buff(auth_data_recv_buff);
 
     while (remaining_len > 0) {
@@ -789,7 +791,6 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
                 puts("ID payload parsing failed");
                 return -1;
             }
-            uint8_t idx_buff[MAX_IKE_MESSAGE_SIZE];
             idx.len = cur_len - sizeof(ike_generic_payload_header_t);
             if (idx.len > countof(idx_buff))
             {
