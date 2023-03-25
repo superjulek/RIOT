@@ -28,6 +28,7 @@ extern "C"
 
 #define MAX_IKE_MESSAGE_SIZE 1280
 #define MAX_NONCE_SIZE 256
+#define MAX_IDX_SIZE 100 // TODO
 
 #define countof(t) sizeof(t)/sizeof(*t)
 

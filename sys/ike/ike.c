@@ -75,8 +75,8 @@ typedef struct {
     chunk_t sk_pr;
     chunk_t id_i;
     chunk_t psk;
-    chunk_t real_message_1;
-    chunk_t real_message_2;
+    sha1_context real_message_1_digest_ctx;
+    sha1_context real_message_2_digest_ctx;
     struct {
         ipv6_addr_t start;
         ipv6_addr_t end;
@@ -108,9 +108,9 @@ static int _parse_auth_r(char *msg, size_t msg_len);
 static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t first_type);
 static int _generate_key(void);
 static int _get_secrets(void);
-static int _get_auth(chunk_t input, chunk_t *auth_data);
-static int _prf(chunk_t key, chunk_t seed, chunk_t *out);
-static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out);
+static void _get_auth_secret(chunk_t *inner_key);
+static void _prf(chunk_t key, chunk_t seed, chunk_t *out);
+static void _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out);
 static int _generate_child_key(void);
 
 static inline uint32_t untoh32(void *network)
@@ -132,54 +132,57 @@ int ike_init(char *addr_str)
     if (ike_ctx.state != IKE_STATE_OFF) {
         if (_reset_context() < 0) {
             puts("Resetting IKE context failed");
-            return -1;
+            goto error;
         }
     }
     if (_init_context() < 0) {
         puts("Initiating IKE context failed");
-        return -1;
+        goto error;
     }
     if (_build_init_i(data_out, &len) < 0) {
         puts("Building IKE INIT message failed");
-        return -1;
+        goto error;
     }
     if (_send_data(addr_str, data_out, len) < 0) {
         puts("Sending IKE INIT message failed");
-        return -1;
+        goto error;
     }
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
         puts("Receiving IKE INIT message failed");
         // TODO: retry
-        return -1;
+        goto error;
     }
     if (_parse_init_r(data_in, len) < 0) {
         puts("Parsing IKE INIT message failed");
-        return -1;
+        goto error;
     }
     if (_build_auth_i(data_out, &len) < 0) {
         puts("Building IKE AUTH message failed");
-        return -1;
+        goto error;
     }
     if (_send_data(addr_str, data_out, len) < 0) {
         puts("Sending IKE AUTH message failed");
-        return -1;
+        goto error;
     }
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
         puts("Receiving IKE AUTH message failed");
         // TODO: retry
-        return -1;
+        goto error;
     }
     if (_parse_auth_r(data_in, len) < 0) {
         puts("Parsing IKE AUTH message failed");
-        return -1;
+        goto error;
     }
     if (_generate_child_key() < 0) {
         puts("Generating Child Keying material failed");
-        return -1;
+        goto error;
     }
     puts("Tunnel established");
 
     return 0;
+error:
+    _reset_context();
+    return -1;
 }
 
 static int _send_data(char *addr_str, char *data, size_t datalen)
@@ -399,8 +402,6 @@ static int _reset_context(void)
     free_chunk(&ike_ctx.sk_pr);
     free_chunk(&ike_ctx.id_i);
     free_chunk(&ike_ctx.psk);
-    free_chunk(&ike_ctx.real_message_1);
-    free_chunk(&ike_ctx.real_message_2);
     free_chunk(&ike_ctx.remote_id.id);
     wc_FreeDhKey(&ike_ctx.wc_priv_key);
     wc_FreeRng(&ike_ctx.wc_rng);
@@ -518,9 +519,12 @@ static int _build_init_i(char *msg, size_t *msg_len)
     hdr.length = htonl(cur_len);
     memcpy(msg, &hdr, sizeof(hdr));
     *msg_len = cur_len;
-
-    ike_ctx.real_message_1 = malloc_chunk(cur_len);
-    memcpy(ike_ctx.real_message_1.ptr, msg, ike_ctx.real_message_1.len);
+    chunk_t auth_secret;
+    _get_auth_secret(&auth_secret);
+    sha1_init_hmac(&ike_ctx.real_message_1_digest_ctx, auth_secret.ptr,
+                   auth_secret.len);
+    free_chunk(&auth_secret);
+    sha1_update(&ike_ctx.real_message_1_digest_ctx, msg, cur_len);
 
     return 0;
 }
@@ -595,8 +599,12 @@ static int _parse_init_r(char *msg, size_t msg_len)
     if (_get_secrets() < 0) {
         puts("Getting secrets failed");
     }
-    ike_ctx.real_message_2 = malloc_chunk(msg_len);
-    memcpy(ike_ctx.real_message_2.ptr, msg, msg_len);
+    chunk_t auth_secret;
+    _get_auth_secret(&auth_secret);
+    sha1_init_hmac(&ike_ctx.real_message_2_digest_ctx, auth_secret.ptr,
+                   auth_secret.len);
+    free_chunk(&auth_secret);
+    sha1_update(&ike_ctx.real_message_2_digest_ctx, msg, msg_len);
     return 0;
 }
 
@@ -629,28 +637,18 @@ static int _build_auth_i(char *msg, size_t *msg_len)
     cur_len += new_len;
 
     /* Construct Authentication payload */
-    chunk_t authed_data;
-    chunk_t auth_data = malloc_chunk(
-        ike_ctx.real_message_1.len + ike_ctx.ike_nonce_r.len + HASH_SIZE_SHA1);
+    chunk_t authed_data = malloc_chunk(HASH_SIZE_SHA1);
 
-    memcpy(auth_data.ptr, ike_ctx.real_message_1.ptr, ike_ctx.real_message_1.len);
-    memcpy(auth_data.ptr + ike_ctx.real_message_1.len, ike_ctx.ike_nonce_r.ptr,
-           ike_ctx.ike_nonce_r.len);
+    sha1_update(&ike_ctx.real_message_1_digest_ctx, ike_ctx.ike_nonce_r.ptr,
+                ike_ctx.ike_nonce_r.len);
     chunk_t idx =
     { .len = new_len - sizeof(ike_generic_payload_header_t),
       .ptr = msg + cur_len - new_len + sizeof(ike_generic_payload_header_t) };
     chunk_t maced_id;
-
-    error = _prf(ike_ctx.sk_pi, idx, &maced_id);
-    if (error < 0) {
-        free_chunk(&auth_data);
-        return error;
-    }
-    memcpy(auth_data.ptr + ike_ctx.real_message_1.len + ike_ctx.ike_nonce_r.len, maced_id.ptr,
-           maced_id.len);
+    _prf(ike_ctx.sk_pi, idx, &maced_id);
+    sha1_update(&ike_ctx.real_message_1_digest_ctx, maced_id.ptr, maced_id.len);
     free_chunk(&maced_id);
-    error = _get_auth(auth_data, &authed_data);
-    free_chunk(&auth_data);
+    sha1_final_hmac(&ike_ctx.real_message_1_digest_ctx, authed_data.ptr);
     if (error < 0) {
         return error;
     }
@@ -768,7 +766,7 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     size_t cur_len;
     chunk_t idx = empty_chunk;
     uint8_t auth_data_recv_buff[HASH_SIZE_SHA1];
-    uint8_t idx_buff[MAX_IKE_MESSAGE_SIZE];
+    uint8_t idx_buff[MAX_IDX_SIZE];
     chunk_t auth_data_recv = chunk_from_buff(auth_data_recv_buff);
 
     while (remaining_len > 0) {
@@ -852,31 +850,18 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     }
     // verify
     /* Construct Authentication */
-    chunk_t authed_data;
-    chunk_t auth_data =
-    { .len = (ike_ctx.real_message_2.len + ike_ctx.ike_nonce_i.len + HASH_SIZE_SHA1) };
-
-    uint8_t auth_data_buff[MAX_IKE_MESSAGE_SIZE + MAX_NONCE_SIZE + HASH_SIZE_SHA1];
-    if (auth_data.len > countof(auth_data_buff))
-    {
-        puts("Auth data too long");
-        return -1;
-    }
-    auth_data.ptr = (char*)auth_data_buff;
+    uint8_t authed_data_buff[HASH_SIZE_SHA1];
+    chunk_t authed_data = {.len = sizeof(authed_data_buff),
+                           .ptr = (char*)authed_data_buff};
     chunk_t maced_id;
+    _prf(ike_ctx.sk_pr, idx, &maced_id);
 
-    if (_prf(ike_ctx.sk_pr, idx, &maced_id) < 0) {
-        return -1;
-    }
-    memcpy(auth_data.ptr, ike_ctx.real_message_2.ptr, ike_ctx.real_message_2.len);
-    memcpy(auth_data.ptr + ike_ctx.real_message_2.len, ike_ctx.ike_nonce_i.ptr,
-           ike_ctx.ike_nonce_i.len);
-    memcpy(auth_data.ptr + ike_ctx.real_message_2.len + ike_ctx.ike_nonce_i.len, maced_id.ptr,
-           maced_id.len);
+    sha1_update(&ike_ctx.real_message_2_digest_ctx, ike_ctx.ike_nonce_i.ptr,
+                ike_ctx.ike_nonce_i.len);
+    sha1_update(&ike_ctx.real_message_2_digest_ctx, maced_id.ptr, maced_id.len);
     free_chunk(&maced_id);
-    if (_get_auth(auth_data, &authed_data) < 0) {
-        return -1;
-    }
+    sha1_final_hmac(&ike_ctx.real_message_2_digest_ctx, authed_data.ptr);
+
     if (authed_data.len != auth_data_recv.len ||
         memcmp(authed_data.ptr, auth_data_recv.ptr, authed_data.len)) {
         puts("Authentication failed");
@@ -908,9 +893,7 @@ static int _generate_child_key(void)
     nonces.ptr = (char*)nonces_buff;
     memcpy(nonces.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
     memcpy(nonces.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
-    if (_prf_plus(ike_ctx.sk_d, nonces, 72, &out) < 0) {
-        return -1;
-    }
+    _prf_plus(ike_ctx.sk_d, nonces, 72, &out);
     puts("Generated keying material");
     printf_chunk(out, 8);
     char *p = out.ptr;
@@ -1022,11 +1005,7 @@ static int _get_secrets(void)
     memcpy(nonce_concat.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
     memcpy(nonce_concat.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr,
            ike_ctx.ike_nonce_r.len);
-    if (_prf(nonce_concat, ike_ctx.shared_secret, &ike_ctx.skeyseed) != 0) {
-        puts("Computing SKEYSEED failed");
-        free_chunk(&nonce_concat);
-        return -1;
-    }
+    _prf(nonce_concat, ike_ctx.shared_secret, &ike_ctx.skeyseed);
     free_chunk(&nonce_concat);
     puts("SKEYSEED:");
     printf_chunk(ike_ctx.skeyseed, 8);
@@ -1046,11 +1025,9 @@ static int _get_secrets(void)
     memcpy(ni_nr_spi_spr.ptr + ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len +
            sizeof(ike_ctx.ike_spi_i), &n_ike_spi_r, sizeof(ike_ctx.ike_spi_r));
 
-    if (_prf_plus(ike_ctx.skeyseed, ni_nr_spi_spr,
-                  5 * KEY_SIZE_SHA1 + 2 * (ike_ctx.ike_key_size / 8), &crypto_concat) != 0) {
-        free_chunk(&ni_nr_spi_spr);
-        return -1;
-    }
+    _prf_plus(ike_ctx.skeyseed, ni_nr_spi_spr,
+              5 * KEY_SIZE_SHA1 + 2 * (ike_ctx.ike_key_size / 8),
+              &crypto_concat);
     ike_ctx.sk_d = malloc_chunk(KEY_SIZE_SHA1);
     ike_ctx.sk_ai = malloc_chunk(KEY_SIZE_SHA1);
     ike_ctx.sk_ar = malloc_chunk(KEY_SIZE_SHA1);
@@ -1092,37 +1069,26 @@ static int _get_secrets(void)
     return 0;
 }
 
-static int _get_auth(chunk_t input, chunk_t *auth_data)
+static void _get_auth_secret(chunk_t *inner_key)
 {
-    chunk_t inner_key;
     char pad_text[] = "Key Pad for IKEv2";
     chunk_t textc = { .ptr = pad_text, .len = strlen(pad_text) };
-
-    if (_prf(ike_ctx.psk, textc, &inner_key) != 0) {
-        return -1;
-    }
-    if (_prf(inner_key, input, auth_data) != 0) {
-        free_chunk(&inner_key);
-        return -1;
-    }
-    return 0;
+    _prf(ike_ctx.psk, textc, inner_key);
 }
 
-static int _prf(chunk_t key, chunk_t seed, chunk_t *out)
+static void _prf(chunk_t key, chunk_t seed, chunk_t *out)
 {
     sha1_context hash;
     sha1_init_hmac(&hash, (unsigned char *)key.ptr, key.len);
     sha1_update(&hash, (unsigned char *)seed.ptr, seed.len);
     *out = malloc_chunk(HASH_SIZE_SHA1);
     sha1_final_hmac(&hash, (unsigned char *)out->ptr);
-    return 0;
 }
 
-static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out)
+static void _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out)
 {
     uint8_t cnt = 0x01;
     chunk_t ret = empty_chunk;
-    int ret_code = -1;
     chunk_t first_seed = malloc_chunk(seed.len + 1);
     chunk_t next_seed = malloc_chunk(HASH_SIZE_SHA1 + seed.len + 1);
 
@@ -1131,9 +1097,7 @@ static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out)
     memcpy(next_seed.ptr + HASH_SIZE_SHA1, seed.ptr, seed.len);
     chunk_t t = empty_chunk;
 
-    if (_prf(key, first_seed, &t) != 0) {
-        goto exit;
-    }
+    _prf(key, first_seed, &t);
     ret = malloc_chunk(t.len);
     memcpy(ret.ptr, t.ptr, t.len);
     while (ret.len < len) {
@@ -1141,18 +1105,13 @@ static int _prf_plus(chunk_t key, chunk_t seed, size_t len, chunk_t *out)
         memcpy(next_seed.ptr, t.ptr, t.len);
         memcpy(next_seed.ptr + HASH_SIZE_SHA1 + seed.len, &cnt, 1);
         free_chunk(&t);
-        if (_prf(key, next_seed, &t) != 0) {
-            goto exit;
-        }
+        _prf(key, next_seed, &t);
         ret.ptr = realloc(ret.ptr, ret.len + HASH_SIZE_SHA1);
         memcpy(ret.ptr + ret.len, t.ptr, t.len);
         ret.len += HASH_SIZE_SHA1;
     }
     *out = ret;
-    ret_code = 0;
-exit:
     free_chunk(&first_seed);
     free_chunk(&next_seed);
     free_chunk(&t);
-    return ret_code;
 }
