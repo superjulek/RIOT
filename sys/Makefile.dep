@@ -1002,4 +1002,9 @@ ifneq (,$(filter auto_init%,$(USEMODULE)))
   USEMODULE += preprocessor_successor
 endif
 
+
+ifneq (,$(filter ike,$(USEMODULE)))
+  USEMODULE += gnrc_ipv6_ipsec
+endif
+
 include $(RIOTBASE)/sys/test_utils/Makefile.dep

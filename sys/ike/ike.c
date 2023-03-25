@@ -22,7 +22,6 @@
 
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/dh.h>
-#include <wolfssl/wolfcrypt/hmac.h>
 
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/netif.h"
@@ -30,6 +29,7 @@
 #include "net/gnrc/udp.h"
 #include "net/gnrc/netreg.h"
 #include "net/utils.h"
+#include "hashes/sha1.h"
 #include "xtimer.h"
 #include "od.h"
 
@@ -1110,23 +1110,11 @@ static int _get_auth(chunk_t input, chunk_t *auth_data)
 
 static int _prf(chunk_t key, chunk_t seed, chunk_t *out)
 {
-    Hmac hmac;
-
-    if (wc_HmacInit(&hmac, NULL, INVALID_DEVID) != 0) {
-        return -1;
-    }
-    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (unsigned char *)key.ptr, key.len) != 0) {
-        return -1;
-    }
-    if (wc_HmacUpdate(&hmac, (unsigned char *)seed.ptr, seed.len) != 0) {
-        return -1;
-    }
+    sha1_context hash;
+    sha1_init_hmac(&hash, (unsigned char *)key.ptr, key.len);
+    sha1_update(&hash, (unsigned char *)seed.ptr, seed.len);
     *out = malloc_chunk(HASH_SIZE_SHA1);
-    if (wc_HmacFinal(&hmac, (unsigned char *)out->ptr) != 0) {
-        free_chunk(out);
-        return -1;
-    }
-    wc_HmacFree(&hmac);
+    sha1_final_hmac(&hash, (unsigned char *)out->ptr);
     return 0;
 }
 
