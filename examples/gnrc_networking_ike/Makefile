@@ -30,15 +30,11 @@ USEMODULE += netstats_ipv6
 USEMODULE += netstats_rpl
 
 USEMODULE += ike
-USEMODULE += gnrc_ipv6_ipsec
 
 USEMODULE += sock_udp
 USEPKG += wolfssl
-USEMODULE += wolfcrypt
-USEMODULE += wolfssl
 USEMODULE += wolfssl_dtls
 USEMODULE += wolfcrypt_rsa wolfcrypt_dh
-USEMODULE += wolfssl_psk
 
 CFLAGS_OPT = -Og# -ggdb
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(20*THREAD_STACKSIZE_DEFAULT\)
@@ -54,20 +50,6 @@ CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(20*THREAD_STACKSIZE_DEFAULT\)
 # development process:
 DEVELHELP ?= 1
 
-# Instead of simulating an Ethernet connection, we can also simulate
-# an IEEE 802.15.4 radio using ZEP
-USE_ZEP ?= 0
-
-# set the ZEP port for native
-ZEP_PORT_BASE ?= 17754
-ifeq (1,$(USE_ZEP))
-  TERMFLAGS += -z [::1]:$(ZEP_PORT_BASE)
-  USEMODULE += socket_zep
-
-  ifneq (,$(ZEP_MAC))
-    TERMFLAGS += --eui64=$(ZEP_MAC)
-  endif
-endif
 
 # Uncomment the following 2 lines to specify static link lokal IPv6 address
 # this might be useful for testing, in cases where you cannot or do not want to
@@ -85,6 +67,3 @@ QUIET ?= 1
 EXTERNAL_BOARD_DIRS += $(RIOTBASE)/tests/external_board_dirs/esp-ci-boards
 
 include $(RIOTBASE)/Makefile.include
-
-# Set a custom channel if needed
-include $(RIOTMAKE)/default-radio-settings.inc.mk

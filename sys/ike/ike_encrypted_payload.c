@@ -8,8 +8,12 @@
 #include <byteorder.h>
 #include <stdio.h>
 
-#include <wolfssl/wolfcrypt/aes.h>
-#include <wolfssl/wolfcrypt/hmac.h>
+#include "hashes/sha1.h"
+#include "crypto/aes.h"
+#include "crypto/modes/cbc.h"
+
+#define ENABLE_DEBUG 0
+#include "debug.h"
 
 static int _encrypt(chunk_t in, chunk_t *out, chunk_t key, chunk_t iv);
 static int _decrypt(chunk_t in, chunk_t *out, chunk_t key, chunk_t iv);
@@ -74,7 +78,7 @@ int process_encrypted_payload(char *start, size_t max_len, size_t *cur_len, ike_
     int ret = process_generic_payload_header(start, max_len, cur_len, next_payload);
     if (ret < 0)
         return ret;
-    char icd[WC_SHA256_DIGEST_SIZE];
+    char icd[20];
     chunk_t auth_in = {
         .ptr = start - sizeof(ike_header_t),
         .len = sizeof(ike_header_t) + *cur_len - HMAC_SIZE_SHA1_96,
@@ -115,70 +119,49 @@ int process_encrypted_payload(char *start, size_t max_len, size_t *cur_len, ike_
 
 static int _encrypt(chunk_t in, chunk_t *out, chunk_t key, chunk_t iv)
 {
-    Aes aes;
-    int ret = 0;
-    if (wc_AesInit(&aes, NULL, INVALID_DEVID) != 0)
-        return -1;
-    if (wc_AesSetKey(&aes, (unsigned char *)key.ptr, key.len, (unsigned char *)iv.ptr, AES_ENCRYPTION) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-    if (wc_AesCbcEncrypt(&aes, (unsigned char *)out->ptr, (unsigned char *)in.ptr, in.len) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-exit:
-    wc_AesFree(&aes);
+    cipher_t cipher;
 
-    return ret;
+    if (cipher_init(&cipher, CIPHER_AES, (unsigned char *)key.ptr,
+                    key.len) != CIPHER_INIT_SUCCESS) {
+        DEBUG("IKE: Failed to initialize cipher\n");
+        return -1;
+    }
+
+    if (cipher_encrypt_cbc(&cipher, (unsigned char *)iv.ptr,
+                           (unsigned char *)in.ptr, in.len,
+                           (unsigned char *)out->ptr) < 0) {
+        DEBUG("IKE: Failed to encrypt\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 static int _decrypt(chunk_t in, chunk_t *out, chunk_t key, chunk_t iv)
 {
-    Aes aes;
-    int ret = 0;
-    if (wc_AesInit(&aes, NULL, INVALID_DEVID) != 0)
-        return -1;
-    if (wc_AesSetKey(&aes, (unsigned char *)key.ptr, key.len, (unsigned char *)iv.ptr, AES_DECRYPTION) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-    if (wc_AesCbcDecrypt(&aes, (unsigned char *)out->ptr, (unsigned char *)in.ptr, in.len) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-exit:
-    wc_AesFree(&aes);
+    cipher_t cipher;
 
-    return ret;
+    if (cipher_init(&cipher, CIPHER_AES, (unsigned char *)key.ptr,
+                    key.len) != CIPHER_INIT_SUCCESS) {
+        DEBUG("IKE: Failed to initialize cipher\n");
+        return -1;
+    }
+
+    if (cipher_decrypt_cbc(&cipher, (unsigned char *)iv.ptr,
+                           (unsigned char *)in.ptr, in.len,
+                           (unsigned char *)out->ptr) < 0) {
+        DEBUG("IKE: Failed to decrypt\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 static int _sign(chunk_t in, chunk_t *out, chunk_t key)
 {
-    Hmac hmac;
-    int ret = 0;
-    if (wc_HmacInit(&hmac, NULL, INVALID_DEVID) != 0)
-        return -1;
-    if (wc_HmacSetKey(&hmac, WC_HASH_TYPE_SHA, (unsigned char *)key.ptr, key.len) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-    if (wc_HmacUpdate(&hmac, (unsigned char *)in.ptr, in.len) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-    if (wc_HmacFinal(&hmac, (unsigned char *)out->ptr) != 0)
-    {
-        ret = -1;
-        goto exit;
-    }
-exit:
-    wc_HmacFree(&hmac);
-    return ret;
+    sha1_context hash;
+    sha1_init_hmac(&hash, (unsigned char *)key.ptr, key.len);
+    sha1_update(&hash, (unsigned char *)in.ptr, in.len);
+    sha1_final_hmac(&hash, (unsigned char *)out->ptr);
+    return 0;
 }

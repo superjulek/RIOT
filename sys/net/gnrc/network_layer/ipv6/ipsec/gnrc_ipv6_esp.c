@@ -6,7 +6,6 @@
 #include "hashes/sha1.h"
 #include "crypto/modes/cbc.h"
 #include "random.h"
-#include "hashes/sha1.h"
 
 #define ENABLE_DEBUG 0
 #include "debug.h"

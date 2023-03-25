@@ -696,6 +696,9 @@ endif
 
 ifneq (,$(filter wifi_scan_list,$(USEMODULE)))
   USEMODULE += l2scan_list
+
+ifneq (,$(filter ike,$(USEMODULE)))
+  USEMODULE += gnrc_ipv6_ipsec
 endif
 
 include $(RIOTBASE)/sys/test_utils/Makefile.dep
