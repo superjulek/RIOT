@@ -30,6 +30,7 @@ USEMODULE += netstats_ipv6
 USEMODULE += netstats_rpl
 
 USEMODULE += ike
+USEMODULE += net_benchmark
 
 USEMODULE += sock_udp
 USEPKG += wolfssl
