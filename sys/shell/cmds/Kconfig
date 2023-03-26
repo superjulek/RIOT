@@ -185,6 +185,11 @@ config MODULE_SHELL_CMD_IKE_CONTROL
     depends on MODULE_SHELL_CMDS
     depends on MODULE_IKE
 
+config MODULE_SHELL_CMD_BENCH_CONTROL
+    bool "Command for managing network benchmarks"
+    depends on MODULE_SHELL_CMDS
+    depends on MODULE_NET_BENCHMARK
+
 config MODULE_SHELL_CMD_LWIP_NETIF
     bool "Command to manage lwIP network interfaces (ifconfig)"
     default y if MODULE_SHELL_CMDS_DEFAULT

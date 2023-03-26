@@ -78,6 +78,9 @@ ifneq (,$(filter shell_cmds_default,$(USEMODULE)))
   ifneq (,$(filter ike,$(USEMODULE)))
     USEMODULE += shell_cmd_ike_control
   endif
+  ifneq (,$(filter net_benchmark,$(USEMODULE)))
+    USEMODULE += shell_cmd_bench_control
+  endif
   ifneq (,$(filter lpc2387,$(USEMODULE)))
     USEMODULE += shell_cmd_heap
   endif
