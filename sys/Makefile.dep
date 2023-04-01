@@ -1005,6 +1005,7 @@ endif
 
 ifneq (,$(filter ike,$(USEMODULE)))
   USEMODULE += gnrc_ipv6_ipsec
+  USEMODULE += od
 endif
 
 include $(RIOTBASE)/sys/test_utils/Makefile.dep

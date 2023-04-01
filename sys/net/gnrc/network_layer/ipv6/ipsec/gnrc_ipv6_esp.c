@@ -7,7 +7,7 @@
 #include "crypto/modes/cbc.h"
 #include "random.h"
 
-#define ENABLE_DEBUG 0
+#define ENABLE_DEBUG 1
 #include "debug.h"
 
 #define ENCRYPTION_BUFFER_SIZE 2048
