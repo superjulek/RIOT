@@ -40,7 +40,15 @@
         "cbc.h": "c",
         "ike_payloads.h": "c",
         "ike_kernel_iface.h": "c",
-        "ike.h": "c"
+        "ike.h": "c",
+        "stdio.h": "c",
+        "inttypes.h": "c",
+        "random.h": "c",
+        "settings.h": "c",
+        "dh.h": "c",
+        "ike_structures.h": "c",
+        "benchmark.h": "c",
+        "net_benchmark.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,

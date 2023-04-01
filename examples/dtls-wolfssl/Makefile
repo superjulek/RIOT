@@ -13,6 +13,7 @@ USEMODULE += netdev_default
 USEMODULE += auto_init_gnrc_netif
 # Specify the mandatory networking modules for IPv6 and UDP
 USEMODULE += gnrc_ipv6_default
+USEMODULE += gnrc_icmpv6_echo
 USEMODULE += sock_udp
 
 # Add also the shell, some shell commands
@@ -26,11 +27,11 @@ USEMODULE += wolfssl_dtls
 
 # Select public key algorithm (or PSK) support fot ciphersuite(s):
 #USEMODULE += wolfcrypt_ecc
-#USEMODULE += wolfcrypt_rsa wolfcrypt_dh
-USEMODULE += wolfssl_psk
+USEMODULE += wolfcrypt_rsa wolfcrypt_dh
+#USEMODULE += wolfssl_psk
 
 # Uncomment the following line to add debug symbols
-#CFLAGS+=-g -ggdb3
+CFLAGS+=-g -ggdb3
 
 CFLAGS += -DDTLS_DEFAULT_PORT=$(DTLS_PORT) -DDTLS_WOLFSSL -Wno-unused-parameter -Wno-unused-variable
 
