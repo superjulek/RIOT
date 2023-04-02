@@ -37,7 +37,7 @@ CFLAGS+=-g -ggdb3
 CFLAGS += -DDTLS_DEFAULT_PORT=$(DTLS_PORT) -DDTLS_WOLFSSL -Wno-unused-parameter -Wno-unused-variable
 
 # A larger stack size is required if using ECC or RSA
-CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(3*THREAD_STACKSIZE_DEFAULT\)
+CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(20*THREAD_STACKSIZE_DEFAULT\)
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the

@@ -7,7 +7,7 @@
 #include "crypto/modes/cbc.h"
 #include "random.h"
 
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
 #define ENCRYPTION_BUFFER_SIZE 2048
@@ -157,7 +157,7 @@ gnrc_pktsnip_t *esp_header_process(gnrc_pktsnip_t *esp, uint8_t protnum)
     uint8_t icv_size;
     uint32_t spi;
     uint32_t sn;
-    uint8_t data_size;
+    size_t data_size;
     uint8_t blocksize;
 
     assert(protnum == PROTNUM_IPV6_EXT_ESP);
