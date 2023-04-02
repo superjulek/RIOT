@@ -33,20 +33,11 @@
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
 extern int dtls_client(int argc, char **argv);
-
-#ifdef MODULE_WOLFCRYPT_TEST
-extern int wolfcrypt_test(void* args);
-static int wolftest(int argc, char **argv)
-{
-    (void)argc;
-    (void)argv;
-    wolfcrypt_test(NULL);
-    return 0;
-}
-#endif
+extern int udp_client(int argc, char **argv);
 
 static const shell_command_t shell_commands[] = {
     { "dtlsc", "Start a DTLS client", dtls_client },
+    { "udpc", "Start a UDP client", udp_client },
     { NULL, NULL, NULL }
 };
 
