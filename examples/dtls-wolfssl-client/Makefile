@@ -32,7 +32,7 @@ USEMODULE += wolfcrypt_rsa wolfcrypt_dh
 
 USEMODULE += ike
 # Uncomment the following line to add debug symbols
-CFLAGS+=-g -ggdb3
+#CFLAGS+=-g -ggdb3
 
 CFLAGS += -DDTLS_DEFAULT_PORT=$(DTLS_PORT) -DDTLS_WOLFSSL -Wno-unused-parameter -Wno-unused-variable
 

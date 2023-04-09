@@ -27,8 +27,8 @@ int build_encrypted_payload(char *start, size_t max_len, size_t *new_len, ike_pa
     uint16_t len = sizeof(ike_generic_payload_header_t) + AES_BLOCK_SIZE + enc_data.len + padding_len + 1 + HMAC_SIZE_SHA1_96;
 
     random_bytes((uint8_t *)iv, AES_BLOCK_SIZE);
-    puts("IV:");
-    printf_chunk(ivc, 8);
+    //puts("IV:");
+    //printf_chunk(ivc, 8);
     if (max_len < len)
     {
         return -ENOMEM;
