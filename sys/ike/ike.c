@@ -35,6 +35,12 @@
 
 #include "random.h"
 
+#define ENABLE_DEBUG        0
+#include "debug.h"
+
+#define DEBUG_CHUNK(...) if (ENABLE_DEBUG) printf_chunk(__VA_ARGS__);
+
+
 #define IKE_NONCE_I_LEN 32
 #define MSG_BUF_LEN 1280
 
@@ -128,56 +134,58 @@ int ike_init(char *addr_str)
     char data_out[MSG_BUF_LEN];
     char data_in[MSG_BUF_LEN];
     uint32_t timeout = 5;
+    uint32_t start = xtimer_now_usec();
 
     if (ike_ctx.state != IKE_STATE_OFF) {
         if (_reset_context() < 0) {
-            puts("Resetting IKE context failed");
+            DEBUG("Resetting IKE context failed\n");
             goto error;
         }
     }
     if (_init_context() < 0) {
-        puts("Initiating IKE context failed");
+        DEBUG("Initiating IKE context failed\n");
         goto error;
     }
     if (_build_init_i(data_out, &len) < 0) {
-        puts("Building IKE INIT message failed");
+        DEBUG("Building IKE INIT message failed\n");
         goto error;
     }
     if (_send_data(addr_str, data_out, len) < 0) {
-        puts("Sending IKE INIT message failed");
+        DEBUG("Sending IKE INIT message failed\n");
         goto error;
     }
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
-        puts("Receiving IKE INIT message failed");
+        DEBUG("Receiving IKE INIT message failed\n");
         // TODO: retry
         goto error;
     }
     if (_parse_init_r(data_in, len) < 0) {
-        puts("Parsing IKE INIT message failed");
+        DEBUG("Parsing IKE INIT message failed\n");
         goto error;
     }
     if (_build_auth_i(data_out, &len) < 0) {
-        puts("Building IKE AUTH message failed");
+        DEBUG("Building IKE AUTH message failed\n");
         goto error;
     }
     if (_send_data(addr_str, data_out, len) < 0) {
-        puts("Sending IKE AUTH message failed");
+        DEBUG("Sending IKE AUTH message failed\n");
         goto error;
     }
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
-        puts("Receiving IKE AUTH message failed");
+        DEBUG("Receiving IKE AUTH message failed\n");
         // TODO: retry
         goto error;
     }
     if (_parse_auth_r(data_in, len) < 0) {
-        puts("Parsing IKE AUTH message failed");
+        DEBUG("Parsing IKE AUTH message failed\n");
         goto error;
     }
     if (_generate_child_key() < 0) {
-        puts("Generating Child Keying material failed");
+        DEBUG("Generating Child Keying material failed\n");
         goto error;
     }
-    puts("Tunnel established");
+    uint32_t total = xtimer_now_usec() - start;
+    printf("Tunnel established in %dus\n", total);
 
     return 0;
 error:
@@ -193,7 +201,7 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
 
     /* parse destination address */
     if (netutils_get_ipv6(&addr, &netif, addr_str) < 0) {
-        puts("Error: unable to parse destination address");
+        DEBUG("Error: unable to parse destination address\n");
         return -1;
     }
     ike_ctx.remote_ip = addr;
@@ -204,7 +212,7 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
     /* allocate payload */
     payload = gnrc_pktbuf_add(NULL, data, datalen, GNRC_NETTYPE_UNDEF);
     if (payload == NULL) {
-        puts("Error: unable to copy data to packet buffer");
+        DEBUG("Error: unable to copy data to packet buffer\n");
         return -1;
     }
     /* store size for output */
@@ -212,28 +220,28 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
     /* allocate UDP header, set source port := destination port */
     udp = gnrc_udp_hdr_build(payload, port, port);
     if (udp == NULL) {
-        puts("Error: unable to allocate UDP header");
+        DEBUG("Error: unable to allocate UDP header\n");
         gnrc_pktbuf_release(payload);
         return -1;
     }
     /* allocate IPv6 header */
     ip = gnrc_ipv6_hdr_build(udp, NULL, &addr);
     if (ip == NULL) {
-        puts("Error: unable to allocate IPv6 header");
+        DEBUG("Error: unable to allocate IPv6 header\n");
         gnrc_pktbuf_release(udp);
         return -1;
     }
     /* send packet */
     if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP,
                                    GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
-        puts("Error: unable to locate UDP thread");
+        DEBUG("Error: unable to locate UDP thread\n");
         gnrc_pktbuf_release(ip);
         return -1;
     }
     /* access to `payload` was implicitly given up with the send operation
      * above
      * => use temporary variable for output */
-    printf("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
+    DEBUG("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
            port);
     return 0;
 }
@@ -247,7 +255,7 @@ static void _process_incoming(gnrc_pktsnip_t *pkt, chunk_t *recv_chunk)
 
     if (ipv6_hdr->src.u64[0].u64 != ike_ctx.remote_ip.u64[0].u64 ||
         ipv6_hdr->src.u64[1].u64 != ike_ctx.remote_ip.u64[1].u64) {
-        puts("Received packet from other host\n");
+        DEBUG("Received packet from other host\n");
         return;
     }
     ike_ctx.local_ip = ipv6_hdr->dst;
@@ -256,37 +264,37 @@ static void _process_incoming(gnrc_pktsnip_t *pkt, chunk_t *recv_chunk)
     // uint64_t src_port = 0;
 
     while (snip != NULL) {
-        printf("~~ SNIP %2i - size: %3u byte, type: ", snips, (unsigned int)snip->size);
+        DEBUG("~~ SNIP %2i - size: %3u byte, type: ", snips, (unsigned int)snip->size);
 
         size_t hdr_len = 0;
 
         switch (snip->type) {
         case GNRC_NETTYPE_UDP:
-            printf("NETTYPE_UDP (%i)\n", snip->type);
+            DEBUG("NETTYPE_UDP (%i)\n", snip->type);
             if (IS_USED(MODULE_UDP)) {
-                udp_hdr_print(snip->data);
+                //udp_hdr_print(snip->data);
                 hdr_len = sizeof(udp_hdr_t);
             }
             break;
         case GNRC_NETTYPE_IPV6:
-            printf("NETTYPE_IPV6 (%i)\n", snip->type);
+            DEBUG("NETTYPE_IPV6 (%i)\n", snip->type);
             if (IS_USED(MODULE_IPV6_HDR)) {
-                ipv6_hdr_print(snip->data);
+                //ipv6_hdr_print(snip->data);
                 hdr_len = sizeof(ipv6_hdr_t);
             }
             break;
         case GNRC_NETTYPE_NETIF:
-            printf("NETTYPE_NETIF (%i)\n", snip->type);
+            DEBUG("NETTYPE_NETIF (%i)\n", snip->type);
             if (IS_USED(MODULE_GNRC_NETIF_HDR)) {
-                gnrc_netif_hdr_print(snip->data);
+                //gnrc_netif_hdr_print(snip->data);
                 hdr_len = snip->size;
             }
             break;
         case GNRC_NETTYPE_UNDEF:
-            printf("NETTYPE_UNDEF (%i)\n", snip->type);
+            DEBUG("NETTYPE_UNDEF (%i)\n", snip->type);
             if (hdr_len < snip->size) {
                 size_t data_size = snip->size - hdr_len;
-                od_hex_dump(((uint8_t *)snip->data) + hdr_len, data_size, OD_WIDTH_DEFAULT);
+                //od_hex_dump(((uint8_t *)snip->data) + hdr_len, data_size, OD_WIDTH_DEFAULT);
                 if (data_size <= MSG_BUF_LEN) {
                     memcpy(recv_chunk->ptr, snip->data, data_size);
                     recv_chunk->len = data_size;
@@ -301,7 +309,7 @@ static void _process_incoming(gnrc_pktsnip_t *pkt, chunk_t *recv_chunk)
         size += snip->size;
         snip = snip->next;
     }
-    printf("~~ PKT    - %2i snips, total size: %3i byte\n", snips, size);
+    DEBUG("~~ PKT    - %2i snips, total size: %3i byte\n", snips, size);
 }
 
 static void *_eventloop(void *arg)
@@ -321,7 +329,7 @@ static void *_eventloop(void *arg)
 
         switch (msg.type) {
         case GNRC_NETAPI_MSG_TYPE_RCV:
-            printf("Packets received");
+            DEBUG("Packets received\n");
             _process_incoming(msg.content.ptr, recv_chunk);
             gnrc_pktbuf_release(msg.content.ptr);
             break;
@@ -354,13 +362,13 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
                                THREAD_CREATE_STACKTEST, _eventloop, (void *)&receive_chunk,
                                "UDP server");
     if (server_pid <= KERNEL_PID_UNDEF) {
-        puts("Error: can not start server thread");
+        DEBUG("Error: can not start server thread\n");
         return -1;
     }
     /* register server to receive messages from given port */
     gnrc_netreg_entry_init_pid(&server, port, server_pid);
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
-    printf("Waiting for message on port %" PRIu16 "\n", port);
+    DEBUG("Waiting for message on port %" PRIu16 "\n", port);
     for (uint32_t i = 0; i < timeout; ++i) {
         xtimer_sleep(1);
         if (receive_chunk.len) {
@@ -369,10 +377,10 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
     }
     gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &server);
     gnrc_netreg_entry_init_pid(&server, 0, KERNEL_PID_UNDEF);
-    puts("Finished waiting");
+    DEBUG("Finished waiting\n");
     if (receive_chunk.len) {
-        puts("Received data:");
-        od_hex_dump(receive_chunk.ptr, receive_chunk.len, 0);
+        DEBUG("Received data:\n");
+        DEBUG_CHUNK(receive_chunk, 0);
         *datalen = receive_chunk.len;
         return 0;
     }
@@ -381,7 +389,7 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
 
 static int _reset_context(void)
 {
-    puts("Resetting IKE context");
+    DEBUG("Resetting IKE context\n");
     clear_esp(ike_ctx.child_spi_i, ike_ctx.child_spi_r, ike_ctx.sp_in_idx, ike_ctx.sp_out_idx);
     ike_ctx.state = IKE_STATE_OFF;
     ike_ctx.ike_spi_i = 0;
@@ -411,22 +419,22 @@ static int _reset_context(void)
 
 static int _init_context(void)
 {
-    puts("Initiating IKE context");
+    DEBUG("Initiating IKE context\n");
 
     /* Generate random values */
     uint64_t ike_spi_i;
     uint32_t child_spi_i;
 
     random_bytes((uint8_t *)&ike_spi_i, sizeof(uint64_t));
-    printf("New IKE initiator SPI: 0x%" "llX" "\n", ike_spi_i);
+    DEBUG("New IKE initiator SPI: 0x%" "llX" "\n", ike_spi_i);
     random_bytes((uint8_t *)&child_spi_i, sizeof(uint32_t));
-    printf("New Child initiator SPI: 0x%" PRIX32 "\n", child_spi_i);
+    DEBUG("New Child initiator SPI: 0x%" PRIX32 "\n", child_spi_i);
 
     chunk_t ike_nonce_i = malloc_chunk(IKE_NONCE_I_LEN);
 
     random_bytes((uint8_t *)ike_nonce_i.ptr, ike_nonce_i.len);
-    printf("New IKE initiatior Nonce:");
-    printf_chunk(ike_nonce_i, 8);
+    DEBUG("New IKE initiatior Nonce:\n");
+    DEBUG_CHUNK(ike_nonce_i, 8);
 
     chunk_t id_i = malloc_chunk(strlen(ID_I));
 
@@ -538,16 +546,16 @@ static int _parse_init_r(char *msg, size_t msg_len)
     ike_payload_type_t next_type;
 
     if (msg_len < sizeof(ike_header_t)) {
-        puts("Message too short");
+        DEBUG("Message too short\n");
         return -EMSGSIZE;
     }
     ike_hdr = (ike_header_t *)p;
     if (ntohl(ike_hdr->length) != msg_len) {
-        puts("Message length mismatch");
+        DEBUG("Message length mismatch\n");
         return -EMSGSIZE;
     }
     if (ike_ctx.ike_spi_i != ntohll(ike_hdr->ike_sa_spi_i)) {
-        puts("SPI mismatch");
+        DEBUG("SPI mismatch\n");
         return -EPROTO;
     }
     ike_ctx.ike_spi_r = ntohll(ike_hdr->ike_sa_spi_r);
@@ -560,44 +568,44 @@ static int _parse_init_r(char *msg, size_t msg_len)
         case IKE_PT_NONCE:
             if (process_nonce_payload(p, remaining_len, &cur_len, &next_type,
                                       &ike_ctx.ike_nonce_r) < 0) {
-                puts("Nonce payload parsing failed");
+                DEBUG("Nonce payload parsing failed\n");
                 return -1;
             }
-            printf("Parsed nonce payload of size %u\n", cur_len);
-            printf_chunk(ike_ctx.ike_nonce_r, 4);
+            DEBUG("Parsed nonce payload of size %u\n", cur_len);
+            DEBUG_CHUNK(ike_ctx.ike_nonce_r, 4);
             break;
         case IKE_PT_SECURITY_ASSOCIATION:
             if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL,
                                    NULL, NULL, NULL, NULL, &empty_chunk) < 0) {
-                puts("Nonce payload parsing failed");
+                DEBUG("Nonce payload parsing failed\n");
                 return -1;
             }
-            printf("Parsed nonce payload of size %u\n", cur_len);
-            printf_chunk(ike_ctx.ike_nonce_r, 4);
+            DEBUG("Parsed nonce payload of size %u\n", cur_len);
+            DEBUG_CHUNK(ike_ctx.ike_nonce_r, 4);
             break;
         case IKE_PT_KEY_EXCHANGE:
         {}
             ike_transform_dh_t dh_r;
             if (process_key_exchange_payload(p, remaining_len, &cur_len, &next_type, &dh_r,
                                              &ike_ctx.pubkey_r)) {
-                puts("Nonce payload parsing failed");
+                DEBUG("Nonce payload parsing failed\n");
                 return -1;
             }
-            printf("Parsed key exchange payload of size %u\n", cur_len);
-            printf_chunk(ike_ctx.pubkey_r, 8);
+            DEBUG("Parsed key exchange payload of size %u\n", cur_len);
+            DEBUG_CHUNK(ike_ctx.pubkey_r, 8);
             break;
         default:
             if (process_unknown_payload(p, remaining_len, &cur_len, &next_type) < 0) {
-                puts("Unknown payload parsing failed");
+                DEBUG("Unknown payload parsing failed\n");
                 return -1;
             }
-            printf("Parsed unknown payload of size %u\n", cur_len);
+            DEBUG("Parsed unknown payload of size %u\n", cur_len);
         }
         remaining_len -= cur_len;
         p += cur_len;
     }
     if (_get_secrets() < 0) {
-        puts("Getting secrets failed");
+        DEBUG("Getting secrets failed\n");
     }
     chunk_t auth_secret;
     _get_auth_secret(&auth_secret);
@@ -725,17 +733,17 @@ static int _parse_auth_r(char *msg, size_t msg_len)
     int error;
 
     if (msg_len < sizeof(ike_header_t)) {
-        puts("Message too short");
+        DEBUG("Message too short\n");
         return -EMSGSIZE;
     }
     ike_hdr = (ike_header_t *)p;
     if (ntohl(ike_hdr->length) != msg_len) {
-        puts("Message length mismatch");
+        DEBUG("Message length mismatch\n");
         return -EMSGSIZE;
     }
     if (ike_ctx.ike_spi_r != ntohll(ike_hdr->ike_sa_spi_r) ||
         ike_ctx.ike_spi_i != ntohll(ike_hdr->ike_sa_spi_i)) {
-        puts("SPI mismatch");
+        DEBUG("SPI mismatch\n");
         return -EPROTO;
     }
     // TODO: more checks
@@ -745,13 +753,13 @@ static int _parse_auth_r(char *msg, size_t msg_len)
     error = process_encrypted_payload(p, remaining_len, &cur_len, &next_type, &decrypted_msg,
                                       ike_ctx.sk_er, ike_ctx.sk_ar);
     if (error) {
-        puts("Payload decryption failed");
+        DEBUG("Payload decryption failed\n");
         return -EBADMSG;
     }
-    puts("Decrypted data:");
-    printf_chunk(decrypted_msg, 8);
+    DEBUG("Decrypted data:\n");
+    DEBUG_CHUNK(decrypted_msg, 8);
     if (_parse_auth_r_decrypted(decrypted_msg.ptr, decrypted_msg.len, next_type)) {
-        puts("Parsing decrypted content failed");
+        DEBUG("Parsing decrypted content failed\n");
         return -EBADMSG;
     }
     free_chunk(&decrypted_msg);
@@ -777,7 +785,7 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
             chunk_t n_spi = {.ptr = (char*)&spi, .len = sizeof(spi)};
             if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL,
                                    NULL, NULL, NULL, NULL, &n_spi) < 0) {
-                puts("SA payload parsing failed");
+                DEBUG("SA payload parsing failed\n");
                 return -1;
             }
             ike_ctx.child_spi_r = ntohl(spi);
@@ -786,64 +794,64 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
             if (process_identification_payload(p, remaining_len, &cur_len, &next_type,
                                                &ike_ctx.remote_id.type,
                                                &ike_ctx.remote_id.id) < 0) {
-                puts("ID payload parsing failed");
+                DEBUG("ID payload parsing failed\n");
                 return -1;
             }
             idx.len = cur_len - sizeof(ike_generic_payload_header_t);
             if (idx.len > countof(idx_buff))
             {
-                puts("IDX too long");
+                DEBUG("IDX too long\n");
                 return -1;
             }
             idx.ptr = (char*)idx_buff;
             memcpy(idx.ptr, p + sizeof(ike_generic_payload_header_t), idx.len);
-            printf("Received ID (%d):\n", ike_ctx.remote_id.type);
-            printf_chunk(ike_ctx.remote_id.id, 8);
-            printf("%.*s\n", ike_ctx.remote_id.id.len, ike_ctx.remote_id.id.ptr);
+            DEBUG("Received ID (%d):\n", ike_ctx.remote_id.type);
+            DEBUG_CHUNK(ike_ctx.remote_id.id, 8);
+            DEBUG("%.*s\n", ike_ctx.remote_id.id.len, ike_ctx.remote_id.id.ptr);
             break;
         case IKE_PT_AUTHENTICATION:
         {}
             ike_auth_method_t auth_method;
             if (process_auth_payload(p, remaining_len, &cur_len, &next_type, &auth_method,
                                      &auth_data_recv) < 0) {
-                puts("AUTH payload parsing failed");
+                DEBUG("AUTH payload parsing failed\n");
                 return -1;
             }
             if (auth_method != IKE_AUTH_METHOD_PSK) {
-                puts("Unsupported AUTH method");
+                DEBUG("Unsupported AUTH method\n");
                 return -1;
             }
             break;
         case IKE_PT_TRAFFIC_SELECTOR_I:
             if (process_ts_payload(p, remaining_len, &cur_len, &next_type, &ike_ctx.local_ts.start,
                                    &ike_ctx.local_ts.end) < 0) {
-                puts("TSi payload parsing failed");
+                DEBUG("TSi payload parsing failed\n");
                 return -1;
             }
-            puts("Received TSi");
-            puts("From:");
-            od_hex_dump(&ike_ctx.local_ts.start, 16, 16);
-            puts("To:");
-            od_hex_dump(&ike_ctx.local_ts.end, 16, 16);
+            DEBUG("Received TSi\n");
+            DEBUG("From:\n");
+            //od_hex_dump(&ike_ctx.local_ts.start, 16, 16);
+            DEBUG("To:\n");
+            //od_hex_dump(&ike_ctx.local_ts.end, 16, 16);
             break;
         case IKE_PT_TRAFFIC_SELECTOR_R:
             if (process_ts_payload(p, remaining_len, &cur_len, &next_type, &ike_ctx.remote_ts.start,
                                    &ike_ctx.remote_ts.end) < 0) {
-                puts("TSr payload parsing failed");
+                DEBUG("TSr payload parsing failed\n");
                 return -1;
             }
-            puts("Received TSi");
-            puts("From:");
-            od_hex_dump(&ike_ctx.remote_ts.start, 16, 16);
-            puts("To:");
-            od_hex_dump(&ike_ctx.remote_ts.end, 16, 16);
+            DEBUG("Received TSi\n");
+            DEBUG("From:\n");
+            //od_hex_dump(&ike_ctx.remote_ts.start, 16, 16);
+            DEBUG("To:\n");
+            //od_hex_dump(&ike_ctx.remote_ts.end, 16, 16);
             break;
         default:
             if (process_unknown_payload(p, remaining_len, &cur_len, &next_type) < 0) {
-                puts("Unknown payload parsing failed");
+                DEBUG("Unknown payload parsing failed\n");
                 return -1;
             }
-            printf("Parsed unknown payload of size %u\n", cur_len);
+            DEBUG("Parsed unknown payload of size %u\n", cur_len);
         }
         remaining_len -= cur_len;
         p += cur_len;
@@ -864,7 +872,7 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
 
     if (authed_data.len != auth_data_recv.len ||
         memcmp(authed_data.ptr, auth_data_recv.ptr, authed_data.len)) {
-        puts("Authentication failed");
+        DEBUG("Authentication failed\n");
         return -1;
     }
     return 0;
@@ -886,7 +894,7 @@ static int _generate_child_key(void)
     chunk_t out;
     if (nonces.len > countof(nonces_buff))
     {
-        puts("Nonces too big");
+        DEBUG("Nonces too big\n");
         return -1;
     }
 
@@ -894,8 +902,8 @@ static int _generate_child_key(void)
     memcpy(nonces.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
     memcpy(nonces.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
     _prf_plus(ike_ctx.sk_d, nonces, 72, &out);
-    puts("Generated keying material");
-    printf_chunk(out, 8);
+    DEBUG("Generated keying material\n");
+    DEBUG_CHUNK(out, 8);
     char *p = out.ptr;
 
     for (size_t i = 0; i < countof(parts); ++i) {
@@ -903,19 +911,19 @@ static int _generate_child_key(void)
         memcpy(part.ptr, p, part.len);
         p += part.len;
     }
-    puts("Encryption Initiator");
-    printf_chunk(enc_i, 8);
-    puts("Encryption Responder");
-    printf_chunk(enc_r, 8);
-    puts("Integrity Initiator");
-    printf_chunk(int_i, 8);
-    puts("Integrity Responder");
-    printf_chunk(int_r, 8);
+    DEBUG("Encryption Initiator\n");
+    DEBUG_CHUNK(enc_i, 8);
+    DEBUG("Encryption Responder\n");
+    DEBUG_CHUNK(enc_r, 8);
+    DEBUG("Integrity Initiator\n");
+    DEBUG_CHUNK(int_i, 8);
+    DEBUG("Integrity Responder\n");
+    DEBUG_CHUNK(int_r, 8);
     free_chunk(&out);
     if (install_esp(int_i, int_r, enc_i, enc_r, ike_ctx.local_ip, ike_ctx.remote_ip,
                     ike_ctx.child_spi_i, ike_ctx.child_spi_r, (int*)&ike_ctx.sp_in_idx,
                     (int*)&ike_ctx.sp_out_idx)) {
-        puts("Failed to install SA in kernel database");
+        DEBUG("Failed to install SA in kernel database\n");
         return -1;
     }
     return 0;
@@ -979,10 +987,10 @@ static int _generate_key(void)
         wc_FreeDhKey(&ike_ctx.wc_priv_key);
         return -1;
     }
-    puts("Pub:");
-    printf_chunk(ike_ctx.pubkey_i, 8);
-    puts("Priv:");
-    printf_chunk(ike_ctx.privkey_i, 8);
+    DEBUG("Pub:\n");
+    DEBUG_CHUNK(ike_ctx.pubkey_i, 8);
+    DEBUG("Priv:\n");
+    DEBUG_CHUNK(ike_ctx.privkey_i, 8);
     return 0;
 }
 
@@ -994,12 +1002,12 @@ static int _get_secrets(void)
     if (wc_DhAgree(&ike_ctx.wc_priv_key, (unsigned char *)ike_ctx.shared_secret.ptr, &len,
                    (unsigned char *)ike_ctx.privkey_i.ptr, ike_ctx.privkey_i.len,
                    (unsigned char *)ike_ctx.pubkey_r.ptr, ike_ctx.pubkey_r.len) != 0) {
-        puts("Getting shared secret failed");
+        DEBUG("Getting shared secret failed\n");
         return -1;
     }
     ike_ctx.shared_secret.len = len;
-    puts("Shared secret:");
-    printf_chunk(ike_ctx.shared_secret, 8);
+    DEBUG("Shared secret:\n");
+    DEBUG_CHUNK(ike_ctx.shared_secret, 8);
     chunk_t nonce_concat = malloc_chunk(ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len);
 
     memcpy(nonce_concat.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
@@ -1007,8 +1015,8 @@ static int _get_secrets(void)
            ike_ctx.ike_nonce_r.len);
     _prf(nonce_concat, ike_ctx.shared_secret, &ike_ctx.skeyseed);
     free_chunk(&nonce_concat);
-    puts("SKEYSEED:");
-    printf_chunk(ike_ctx.skeyseed, 8);
+    DEBUG("SKEYSEED:\n");
+    DEBUG_CHUNK(ike_ctx.skeyseed, 8);
     chunk_t crypto_concat = empty_chunk;
     chunk_t ni_nr_spi_spr =
         malloc_chunk(
@@ -1059,8 +1067,8 @@ static int _get_secrets(void)
         chunk_t *part = parts[i];
         memcpy(part->ptr, p, part->len);
         p += part->len;
-        puts(parts_names[i]);
-        printf_chunk(*part, 8);
+        DEBUG("%s", parts_names[i]);
+        DEBUG_CHUNK(*part, 8);
     }
 
     free_chunk(&ni_nr_spi_spr);
