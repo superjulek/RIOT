@@ -185,7 +185,7 @@ int ike_init(char *addr_str)
         goto error;
     }
     uint32_t total = xtimer_now_usec() - start;
-    printf("Tunnel established in %dus\n", total);
+    printf("Tunnel established in %"PRIu32"s\n", total);
 
     return 0;
 error:
