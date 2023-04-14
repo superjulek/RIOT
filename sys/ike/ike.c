@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <net/sock/udp.h>
 
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/dh.h>
@@ -35,7 +36,7 @@
 
 #include "random.h"
 
-#define ENABLE_DEBUG        0
+#define ENABLE_DEBUG        1
 #include "debug.h"
 
 #define DEBUG_CHUNK(...) if (ENABLE_DEBUG) printf_chunk(__VA_ARGS__);
@@ -195,196 +196,95 @@ error:
 
 static int _send_data(char *addr_str, char *data, size_t datalen)
 {
-    netif_t *netif;
-    uint16_t port = 500;
-    ipv6_addr_t addr;
+    char *iface;
+    sock_udp_ep_t local = SOCK_IPV6_EP_ANY;
+    sock_udp_ep_t remote = SOCK_IPV6_EP_ANY;
+    sock_udp_t sckv;
+    sock_udp_t *sck = &sckv;
 
-    /* parse destination address */
-    if (netutils_get_ipv6(&addr, &netif, addr_str) < 0) {
-        DEBUG("Error: unable to parse destination address\n");
+    /* Parsing <address> */
+    iface = ipv6_addr_split_iface(addr_str);
+    if (!iface) {
+        if (gnrc_netif_numof() == 1) {
+            /* assign the single interface found in gnrc_netif_numof() */
+            remote.netif = (uint16_t)gnrc_netif_iter(NULL)->pid;
+        }
+    }
+    else {
+        gnrc_netif_t *netif = gnrc_netif_get_by_pid(atoi(iface));
+        if (netif == NULL) {
+            DEBUG("ERROR: interface not valid\n");
+            return -1;
+        }
+        remote.netif = (uint16_t)netif->pid;
+    }
+    if (ipv6_addr_from_str((ipv6_addr_t *)remote.addr.ipv6, addr_str) == NULL) {
+        DEBUG("ERROR: unable to parse destination address\n");
         return -1;
     }
-    ike_ctx.remote_ip = addr;
-
-    gnrc_pktsnip_t *payload, *udp, *ip;
-    unsigned payload_size;
-
-    /* allocate payload */
-    payload = gnrc_pktbuf_add(NULL, data, datalen, GNRC_NETTYPE_UNDEF);
-    if (payload == NULL) {
-        DEBUG("Error: unable to copy data to packet buffer\n");
+    ike_ctx.remote_ip = *(ipv6_addr_t*)remote.addr.ipv6;
+    remote.port = 500;
+    local.port = 500;
+    if (sock_udp_create(sck, &local, &remote, 0)) {
+        DEBUG("ERROR: Unable to create UDP sock\n");
         return -1;
     }
-    /* store size for output */
-    payload_size = (unsigned)payload->size;
-    /* allocate UDP header, set source port := destination port */
-    udp = gnrc_udp_hdr_build(payload, port, port);
-    if (udp == NULL) {
-        DEBUG("Error: unable to allocate UDP header\n");
-        gnrc_pktbuf_release(payload);
+    if (sock_udp_send(sck, data, datalen, &remote) < 0)
+    {
+        DEBUG("ERROR: Data not sent\n");
+        sock_udp_close(sck);
         return -1;
     }
-    /* allocate IPv6 header */
-    ip = gnrc_ipv6_hdr_build(udp, NULL, &addr);
-    if (ip == NULL) {
-        DEBUG("Error: unable to allocate IPv6 header\n");
-        gnrc_pktbuf_release(udp);
-        return -1;
-    }
-    /* send packet */
-    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP,
-                                   GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
-        DEBUG("Error: unable to locate UDP thread\n");
-        gnrc_pktbuf_release(ip);
-        return -1;
-    }
-    /* access to `payload` was implicitly given up with the send operation
-     * above
-     * => use temporary variable for output */
-    DEBUG("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
-           port);
+    sock_udp_close(sck);
     return 0;
-}
-
-static void _process_incoming(gnrc_pktsnip_t *pkt, chunk_t *recv_chunk)
-{
-    int snips = 0;
-    int size = 0;
-    gnrc_pktsnip_t *snip = pkt;
-    ipv6_hdr_t *ipv6_hdr = gnrc_ipv6_get_header(pkt);
-
-    if (ipv6_hdr->src.u64[0].u64 != ike_ctx.remote_ip.u64[0].u64 ||
-        ipv6_hdr->src.u64[1].u64 != ike_ctx.remote_ip.u64[1].u64) {
-        DEBUG("Received packet from other host\n");
-        return;
-    }
-    ike_ctx.local_ip = ipv6_hdr->dst;
-
-    // int address_ok = false;
-    // uint64_t src_port = 0;
-
-    while (snip != NULL) {
-        DEBUG("~~ SNIP %2i - size: %3u byte, type: ", snips, (unsigned int)snip->size);
-
-        size_t hdr_len = 0;
-
-        switch (snip->type) {
-        case GNRC_NETTYPE_UDP:
-            DEBUG("NETTYPE_UDP (%i)\n", snip->type);
-            if (IS_USED(MODULE_UDP)) {
-                //udp_hdr_print(snip->data);
-                hdr_len = sizeof(udp_hdr_t);
-            }
-            break;
-        case GNRC_NETTYPE_IPV6:
-            DEBUG("NETTYPE_IPV6 (%i)\n", snip->type);
-            if (IS_USED(MODULE_IPV6_HDR)) {
-                //ipv6_hdr_print(snip->data);
-                hdr_len = sizeof(ipv6_hdr_t);
-            }
-            break;
-        case GNRC_NETTYPE_NETIF:
-            DEBUG("NETTYPE_NETIF (%i)\n", snip->type);
-            if (IS_USED(MODULE_GNRC_NETIF_HDR)) {
-                //gnrc_netif_hdr_print(snip->data);
-                hdr_len = snip->size;
-            }
-            break;
-        case GNRC_NETTYPE_UNDEF:
-            DEBUG("NETTYPE_UNDEF (%i)\n", snip->type);
-            if (hdr_len < snip->size) {
-                size_t data_size = snip->size - hdr_len;
-                //od_hex_dump(((uint8_t *)snip->data) + hdr_len, data_size, OD_WIDTH_DEFAULT);
-                if (data_size <= MSG_BUF_LEN) {
-                    memcpy(recv_chunk->ptr, snip->data, data_size);
-                    recv_chunk->len = data_size;
-                }
-            }
-            break;
-        default:
-            break;
-        }
-
-        ++snips;
-        size += snip->size;
-        snip = snip->next;
-    }
-    DEBUG("~~ PKT    - %2i snips, total size: %3i byte\n", snips, size);
-}
-
-static void *_eventloop(void *arg)
-{
-    chunk_t *recv_chunk = (chunk_t *)arg;
-    msg_t msg, reply;
-    msg_t server_queue[1];
-
-    /* setup the message queue */
-    msg_init_queue(server_queue, 1);
-
-    reply.content.value = (uint32_t)(-ENOTSUP);
-    reply.type = GNRC_NETAPI_MSG_TYPE_ACK;
-
-    while (1) {
-        msg_receive(&msg);
-
-        switch (msg.type) {
-        case GNRC_NETAPI_MSG_TYPE_RCV:
-            DEBUG("Packets received\n");
-            _process_incoming(msg.content.ptr, recv_chunk);
-            gnrc_pktbuf_release(msg.content.ptr);
-            break;
-        case GNRC_NETAPI_MSG_TYPE_GET:
-        case GNRC_NETAPI_MSG_TYPE_SET:
-            msg_reply(&msg, &reply);
-            break;
-        default:
-            break;
-        }
-    }
-
-    /* never reached */
-    return NULL;
 }
 
 static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t timeout)
 {
-    (void)addr_str;
-    uint16_t port = 500;
-    chunk_t receive_chunk = {
-        .ptr = data,
-    };
+    char *iface;
+    sock_udp_ep_t local = SOCK_IPV6_EP_ANY;
+    sock_udp_ep_t remote = SOCK_IPV6_EP_ANY;
+    sock_udp_t sckv;
+    sock_udp_t *sck = &sckv;
+    ssize_t recv_len;
+    sock_udp_aux_rx_t aux = {.flags = SOCK_AUX_GET_LOCAL};
 
-    gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(0, KERNEL_PID_UNDEF);
-    kernel_pid_t server_pid = KERNEL_PID_UNDEF;
-    static char server_stack[THREAD_STACKSIZE_MAIN];
-
-    server_pid = thread_create(server_stack, sizeof(server_stack), THREAD_PRIORITY_MAIN - 1,
-                               THREAD_CREATE_STACKTEST, _eventloop, (void *)&receive_chunk,
-                               "UDP server");
-    if (server_pid <= KERNEL_PID_UNDEF) {
-        DEBUG("Error: can not start server thread\n");
-        return -1;
-    }
-    /* register server to receive messages from given port */
-    gnrc_netreg_entry_init_pid(&server, port, server_pid);
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
-    DEBUG("Waiting for message on port %" PRIu16 "\n", port);
-    for (uint32_t i = 0; i < timeout; ++i) {
-        xtimer_sleep(1);
-        if (receive_chunk.len) {
-            break;
+    /* Parsing <address> */
+    iface = ipv6_addr_split_iface(addr_str);
+    if (!iface) {
+        if (gnrc_netif_numof() == 1) {
+            /* assign the single interface found in gnrc_netif_numof() */
+            remote.netif = (uint16_t)gnrc_netif_iter(NULL)->pid;
         }
     }
-    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &server);
-    gnrc_netreg_entry_init_pid(&server, 0, KERNEL_PID_UNDEF);
-    DEBUG("Finished waiting\n");
-    if (receive_chunk.len) {
-        DEBUG("Received data:\n");
-        DEBUG_CHUNK(receive_chunk, 0);
-        *datalen = receive_chunk.len;
-        return 0;
+    else {
+        gnrc_netif_t *netif = gnrc_netif_get_by_pid(atoi(iface));
+        if (netif == NULL) {
+            DEBUG("ERROR: interface not valid\n");
+            return -1;
+        }
+        remote.netif = (uint16_t)netif->pid;
     }
-    return -ENOMSG;
+    if (ipv6_addr_from_str((ipv6_addr_t *)remote.addr.ipv6, addr_str) == NULL) {
+        DEBUG("ERROR: unable to parse destination address\n");
+        return -1;
+    }
+    local.port = 500;
+    remote.port = 500;
+    if (sock_udp_create(sck, &local, &remote, 0)) {
+        DEBUG("ERROR: Unable to create UDP sock\n");
+        return -1;
+    }
+    recv_len = sock_udp_recv_aux(sck, data, MSG_BUF_LEN, timeout * 1000000, NULL, &aux);
+    if (recv_len < 0) {
+        DEBUG("ERROR: Data not received\n");
+        sock_udp_close(sck);
+        return -1;
+    }
+    ike_ctx.local_ip = *(ipv6_addr_t*)aux.local.addr.ipv6;
+    *datalen = recv_len;
+    sock_udp_close(sck);
+    return 0;
 }
 
 static int _reset_context(void)

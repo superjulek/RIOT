@@ -11,40 +11,61 @@ RIOTBASE ?= $(CURDIR)/../..
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
 USEMODULE += netdev_default
 USEMODULE += auto_init_gnrc_netif
-# Specify the mandatory networking modules for IPv6 and UDP
-USEMODULE += gnrc_ipv6_default
+# Activate ICMPv6 error messages
+USEMODULE += gnrc_icmpv6_error
+# Specify the mandatory networking module for a IPv6 routing node
+USEMODULE += gnrc_ipv6_router_default
+# Add a routing protocol
+USEMODULE += gnrc_rpl
+USEMODULE += auto_init_gnrc_rpl
+# Additional networking modules that can be dropped if not needed
 USEMODULE += gnrc_icmpv6_echo
-USEMODULE += sock_udp
-
+USEMODULE += shell_cmd_gnrc_udp
 # Add also the shell, some shell commands
 USEMODULE += shell
 USEMODULE += shell_cmds_default
-
-USEPKG += wolfssl
-USEMODULE += wolfcrypt
-USEMODULE += wolfssl
-USEMODULE += wolfssl_dtls
-
-# Select public key algorithm (or PSK) support fot ciphersuite(s):
-#USEMODULE += wolfcrypt_ecc
-USEMODULE += wolfcrypt_rsa wolfcrypt_dh
-#USEMODULE += wolfssl_psk
+USEMODULE += ps
+USEMODULE += netstats_l2
+USEMODULE += netstats_ipv6
+USEMODULE += netstats_rpl
 
 USEMODULE += ike
-# Uncomment the following line to add debug symbols
-#CFLAGS+=-g -ggdb3
+USEMODULE += net_benchmark
 
-CFLAGS += -DDTLS_DEFAULT_PORT=$(DTLS_PORT) -DDTLS_WOLFSSL -Wno-unused-parameter -Wno-unused-variable
+USEMODULE += sock_udp
+USEPKG += wolfssl
+USEMODULE += wolfssl_dtls
+USEMODULE += wolfcrypt_rsa wolfcrypt_dh
 
-# A larger stack size is required if using ECC or RSA
+CFLAGS_OPT = -Og -ggdb
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(20*THREAD_STACKSIZE_DEFAULT\)
+CFLAGS += -DISR_STACKSIZE=2048
+
+# Optionally include DNS support. This includes resolution of names at an
+# upstream DNS server and the handling of RDNSS options in Router Advertisements
+# to auto-configure that upstream DNS server.
+# USEMODULE += sock_dns              # include DNS client
+# USEMODULE += gnrc_ipv6_nib_dns     # include RDNSS option handling
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
 DEVELHELP ?= 1
 
+
+# Uncomment the following 2 lines to specify static link lokal IPv6 address
+# this might be useful for testing, in cases where you cannot or do not want to
+# run a shell with ifconfig to get the real link lokal address.
+#IPV6_STATIC_LLADDR ?= '"fe80::cafe:cafe:cafe:1"'
+#CFLAGS += -DGNRC_IPV6_STATIC_LLADDR=$(IPV6_STATIC_LLADDR)
+
+# Uncomment this to join RPL DODAGs even if DIOs do not contain
+# DODAG Configuration Options (see the doc for more info)
+# CFLAGS += -DCONFIG_GNRC_RPL_DODAG_CONF_OPTIONAL_ON_JOIN
+
 # Change this to 0 show compiler invocation lines by default:
 QUIET ?= 1
+
+EXTERNAL_BOARD_DIRS += $(RIOTBASE)/tests/external_board_dirs/esp-ci-boards
 
 include $(RIOTBASE)/Makefile.include

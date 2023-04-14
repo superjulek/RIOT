@@ -41,8 +41,6 @@ int udp_client(int argc, char **argv)
     char rcv_buf[APP_UDP_BUF_SIZE] = {0};
     char *iface;
     char *addr_str;
-    int connect_timeout = 0;
-    const int max_connect_timeouts = 5;
 
     if (argc != 2) {
         usage(argv[0]);
