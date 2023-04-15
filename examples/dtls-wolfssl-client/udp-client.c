@@ -37,8 +37,8 @@ static void usage(const char *cmd_name)
 int udp_client(int argc, char **argv)
 {
     int ret = 0;
-    char buf[APP_UDP_BUF_SIZE] = {0};
-    char rcv_buf[APP_UDP_BUF_SIZE] = {0};
+    uint8_t buf[APP_UDP_BUF_SIZE] = {0};
+    uint8_t rcv_buf[APP_UDP_BUF_SIZE] = {0};
     char *iface;
     char *addr_str;
 
@@ -90,11 +90,10 @@ int udp_client(int argc, char **argv)
     printf("Sending first message ...\n");
     /* attempt to connect until the connection is successful */
     do {
-        (void) buf;
         const char *hello_msg = "Hello\n";
         ret = sock_udp_send(sck, hello_msg, strlen(hello_msg), &remote);
         ret = sock_udp_recv(sck, rcv_buf, sizeof(rcv_buf), 10000000, NULL);
-        if (ret > 0 && strcmp(hello_msg, rcv_buf) == 0)
+        if (ret > 0 && strcmp(hello_msg, (char*)rcv_buf) == 0)
         {
             printf("Server responded same\n");
             break;
@@ -122,6 +121,13 @@ int udp_client(int argc, char **argv)
         {
             printf("Error in received data!\n");
             break;
+        }
+        for (int j = 0; j < APP_UDP_BUF_SIZE; ++j)
+        {
+            if (buf[j] != j % 256) {
+                printf("Stack error!!!");
+                break;
+            }
         }
     }
 

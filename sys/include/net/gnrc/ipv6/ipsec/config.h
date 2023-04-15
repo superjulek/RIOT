@@ -13,14 +13,14 @@ extern "C" {
  * @brief   Default stack size to use for the IPSEC thread.
  */
 #ifndef GNRC_IPV6_IPSEC_STACK_SIZE
-#define GNRC_IPV6_IPSEC_STACK_SIZE           (THREAD_STACKSIZE_DEFAULT)
+#define GNRC_IPV6_IPSEC_STACK_SIZE           5 * (THREAD_STACKSIZE_DEFAULT)
 #endif
 
 /**
  * @brief   Default priority for the IPSEC thread.
  */
 #ifndef GNRC_IPV6_IPSEC_PRIO
-#define GNRC_IPV6_IPSEC_PRIO                 (THREAD_PRIORITY_MAIN - 3)
+#define GNRC_IPV6_IPSEC_PRIO                 (THREAD_PRIORITY_MAIN - 2)
 #endif
 
 /**
