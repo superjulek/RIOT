@@ -49,7 +49,14 @@
         "ike_structures.h": "c",
         "benchmark.h": "c",
         "net_benchmark.h": "c",
-        "ssl.h": "c"
+        "ssl.h": "c",
+        "shell.h": "c",
+        "*.tcc": "c",
+        "chrono": "c",
+        "cstdlib": "c",
+        "system_error": "c",
+        "typeinfo": "c",
+        "netif.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
