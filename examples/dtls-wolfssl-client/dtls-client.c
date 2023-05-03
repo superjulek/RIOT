@@ -28,9 +28,10 @@
 
 #include "net/gnrc/netif.h"
 #include "log.h"
+#include "xtimer.h"
 
 #define SERVER_PORT 11111
-#define APP_DTLS_BUF_SIZE 1500
+#define APP_DTLS_BUF_SIZE 1300
 
 static sock_tls_t skv;
 static sock_tls_t *sk = &skv;
@@ -95,10 +96,12 @@ int dtls_client(int argc, char **argv)
 
     if (sock_dtls_session_create(sk) < 0)
         return -1;
-    wolfSSL_dtls_set_timeout_init(sk->ssl, 5);
+    wolfSSL_dtls_set_timeout_init(sk->ssl, 20);
     LOG(LOG_INFO, "connecting to server...\n");
     /* attempt to connect until the connection is successful */
+    uint32_t wolfSSL_connect_start;
     do {
+        wolfSSL_connect_start = xtimer_now_usec();
         ret = wolfSSL_connect(sk->ssl);
         if ((ret != SSL_SUCCESS)) {
             if(wolfSSL_get_error(sk->ssl, ret) == SOCKET_ERROR_E) {
@@ -118,6 +121,8 @@ int dtls_client(int argc, char **argv)
             }
         }
     } while(ret != SSL_SUCCESS);
+    uint32_t wolfSSL_connect_end = xtimer_now_usec();
+    printf("%7"PRIu32" get_secret\n", wolfSSL_connect_end - wolfSSL_connect_start);
 
     /* set remote endpoint */
     sock_dtls_set_endpoint(sk, &remote);
@@ -127,6 +132,8 @@ int dtls_client(int argc, char **argv)
         wolfSSL_write(sk->ssl, buf, i);
         ret = wolfSSL_read(sk->ssl, buf, APP_DTLS_BUF_SIZE - 1);
         LOG(LOG_INFO, "wolfSSL_read returned %d\n", ret);
+        if (ret != i)
+            break;
     }
 
     // /* send the hello message */
