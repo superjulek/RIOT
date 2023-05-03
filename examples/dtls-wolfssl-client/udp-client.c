@@ -25,9 +25,10 @@
 
 #include "net/gnrc/netif.h"
 #include "log.h"
+#include "xtimer.h"
 
 #define SERVER_PORT 11111
-#define APP_UDP_BUF_SIZE 1500
+#define APP_UDP_BUF_SIZE 1400
 
 static void usage(const char *cmd_name)
 {
@@ -110,7 +111,7 @@ int udp_client(int argc, char **argv)
         memset(rcv_buf, 0, i);
         printf("Sending %d bytes\n", i);
         sock_udp_send(sck, buf, i, &remote);
-        ret = sock_udp_recv(sck, rcv_buf, sizeof(rcv_buf), 5000000, NULL);
+        ret = sock_udp_recv(sck, rcv_buf, sizeof(rcv_buf), 100000000, NULL);
         if (ret <= 0)
         {
             printf("Error %d\n", ret);
@@ -129,6 +130,9 @@ int udp_client(int argc, char **argv)
                 break;
             }
         }
+        //xtimer_msleep(20);
+        if (i == APP_UDP_BUF_SIZE -2)
+        i = 1;
     }
 
     /* Clean up and exit. */

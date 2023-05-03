@@ -36,7 +36,7 @@
 
 #include "random.h"
 
-#define ENABLE_DEBUG        1
+#define ENABLE_DEBUG        0
 #include "debug.h"
 
 #define DEBUG_CHUNK(...) if (ENABLE_DEBUG) printf_chunk(__VA_ARGS__);
@@ -143,50 +143,70 @@ int ike_init(char *addr_str)
             goto error;
         }
     }
+    uint32_t _reset_context_ts = xtimer_now_usec();
     if (_init_context() < 0) {
         DEBUG("Initiating IKE context failed\n");
         goto error;
     }
+    uint32_t _init_context_ts = xtimer_now_usec();
     if (_build_init_i(data_out, &len) < 0) {
         DEBUG("Building IKE INIT message failed\n");
         goto error;
     }
+    uint32_t _build_init_i_ts = xtimer_now_usec();
     if (_send_data(addr_str, data_out, len) < 0) {
         DEBUG("Sending IKE INIT message failed\n");
         goto error;
     }
+    uint32_t _send_data1_ts = xtimer_now_usec();
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
         DEBUG("Receiving IKE INIT message failed\n");
         // TODO: retry
         goto error;
     }
+    uint32_t _receive_data1_ts = xtimer_now_usec();
     if (_parse_init_r(data_in, len) < 0) {
         DEBUG("Parsing IKE INIT message failed\n");
         goto error;
     }
+    uint32_t _parse_init_r_ts = xtimer_now_usec();
     if (_build_auth_i(data_out, &len) < 0) {
         DEBUG("Building IKE AUTH message failed\n");
         goto error;
     }
+    uint32_t _build_auth_i_ts = xtimer_now_usec();
     if (_send_data(addr_str, data_out, len) < 0) {
         DEBUG("Sending IKE AUTH message failed\n");
         goto error;
     }
+    uint32_t _send_data2_ts = xtimer_now_usec();
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
         DEBUG("Receiving IKE AUTH message failed\n");
         // TODO: retry
         goto error;
     }
+    uint32_t _receive_data2_ts = xtimer_now_usec();
     if (_parse_auth_r(data_in, len) < 0) {
         DEBUG("Parsing IKE AUTH message failed\n");
         goto error;
     }
+    uint32_t _parse_auth_r_ts = xtimer_now_usec();
     if (_generate_child_key() < 0) {
         DEBUG("Generating Child Keying material failed\n");
         goto error;
     }
     uint32_t total = xtimer_now_usec() - start;
-    printf("Tunnel established in %"PRIu32"s\n", total);
+    printf("Tunnel established in %7"PRIu32" us\n", total);
+    printf("%7"PRIu32" us reset context\n", _reset_context_ts - start);
+    printf("%7"PRIu32" us init context\n", _init_context_ts - _reset_context_ts);
+    printf("%7"PRIu32" us build INIT\n", _build_init_i_ts - _init_context_ts);
+    printf("%7"PRIu32" us send INIT\n", _send_data1_ts - _build_init_i_ts);
+    printf("%7"PRIu32" us receive INIT\n", _receive_data1_ts - _send_data1_ts);
+    printf("%7"PRIu32" us parse INIT\n", _parse_init_r_ts - _receive_data1_ts);
+    printf("%7"PRIu32" us build AUTH\n", _build_auth_i_ts - _parse_init_r_ts);
+    printf("%7"PRIu32" us send AUTH\n", _send_data2_ts - _build_auth_i_ts);
+    printf("%7"PRIu32" us receive AUTH\n", _receive_data2_ts - _send_data2_ts);
+    printf("%7"PRIu32" us parse AUTH\n", _parse_auth_r_ts - _receive_data2_ts);
 
     return 0;
 error:
@@ -365,7 +385,10 @@ static int _init_context(void)
     };
 
     ike_ctx = new_ike_ctx;
+    uint32_t _qenerate_key_start = xtimer_now_usec();
     _generate_key(); // TODO: check fail
+    uint32_t _qenerate_key_end = xtimer_now_usec();
+    printf("%7"PRIu32" generate_key\n", _qenerate_key_end - _qenerate_key_start);
     return 0;
 }
 
@@ -504,9 +527,12 @@ static int _parse_init_r(char *msg, size_t msg_len)
         remaining_len -= cur_len;
         p += cur_len;
     }
+    uint32_t _qet_secrets_start = xtimer_now_usec();
     if (_get_secrets() < 0) {
         DEBUG("Getting secrets failed\n");
     }
+    uint32_t _qet_secrets_end = xtimer_now_usec();
+    printf("%7"PRIu32" get_secret\n", _qet_secrets_end - _qet_secrets_start);
     chunk_t auth_secret;
     _get_auth_secret(&auth_secret);
     sha1_init_hmac(&ike_ctx.real_message_2_digest_ctx, auth_secret.ptr,

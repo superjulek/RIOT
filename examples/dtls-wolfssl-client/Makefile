@@ -29,6 +29,8 @@ USEMODULE += netstats_l2
 USEMODULE += netstats_ipv6
 USEMODULE += netstats_rpl
 
+USEMODULE += ssp
+
 USEMODULE += ike
 USEMODULE += net_benchmark
 
@@ -37,9 +39,9 @@ USEPKG += wolfssl
 USEMODULE += wolfssl_dtls
 USEMODULE += wolfcrypt_rsa wolfcrypt_dh
 
-CFLAGS_OPT = -Og -ggdb
-CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(20*THREAD_STACKSIZE_DEFAULT\)
-CFLAGS += -DISR_STACKSIZE=2048
+CFLAGS_OPT = -O3#-Og -ggdb
+CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(5*THREAD_STACKSIZE_DEFAULT\)
+CFLAGS += -DISR_STACKSIZE=1024
 
 # Optionally include DNS support. This includes resolution of names at an
 # upstream DNS server and the handling of RDNSS options in Router Advertisements
