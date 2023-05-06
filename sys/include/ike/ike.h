@@ -41,10 +41,8 @@ extern "C"
 
     int ike_init(char *addr_str);
 
-    /**
-     * @brief IKE.
-     */
-    void ikectrl(int argc, char **argv);
+
+    int ike_terminate(void);
 
 #ifdef __cplusplus
 }

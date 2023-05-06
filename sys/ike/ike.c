@@ -103,6 +103,8 @@ typedef struct {
 } _ike_ctx_t;
 
 static _ike_ctx_t ike_ctx;
+static uint32_t key_gen_time;
+static uint32_t dh_time;
 
 static int _send_data(char *addr_str, char *data, size_t datalen);
 static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t timeout);
@@ -113,6 +115,7 @@ static int _build_auth_i(char *msg, size_t *msg_len);
 static int _parse_init_r(char *msg, size_t msg_len);
 static int _parse_auth_r(char *msg, size_t msg_len);
 static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t first_type);
+static int _build_delete_i(char *msg, size_t *msg_len);
 static int _generate_key(void);
 static int _get_secrets(void);
 static void _get_auth_secret(chunk_t *inner_key);
@@ -195,8 +198,10 @@ int ike_init(char *addr_str)
         DEBUG("Generating Child Keying material failed\n");
         goto error;
     }
+    ike_ctx.state = IKE_STATE_ESTABLISHED;
     uint32_t total = xtimer_now_usec() - start;
-    printf("Tunnel established in %7"PRIu32" us\n", total);
+    printf("Stats\n");
+    printf("%7"PRIu32" us total established in \n", total);
     printf("%7"PRIu32" us reset context\n", _reset_context_ts - start);
     printf("%7"PRIu32" us init context\n", _init_context_ts - _reset_context_ts);
     printf("%7"PRIu32" us build INIT\n", _build_init_i_ts - _init_context_ts);
@@ -207,7 +212,43 @@ int ike_init(char *addr_str)
     printf("%7"PRIu32" us send AUTH\n", _send_data2_ts - _build_auth_i_ts);
     printf("%7"PRIu32" us receive AUTH\n", _receive_data2_ts - _send_data2_ts);
     printf("%7"PRIu32" us parse AUTH\n", _parse_auth_r_ts - _receive_data2_ts);
+    printf("%7"PRIu32" us generate_key\n", key_gen_time);
+    printf("%7"PRIu32" us get_secret\n", dh_time);
 
+    return 0;
+error:
+    _reset_context();
+    return -1;
+}
+
+int ike_terminate(void)
+{
+    size_t len;
+    char data_out[MSG_BUF_LEN];
+    char data_in[MSG_BUF_LEN];
+    char addr_str[IPV6_ADDR_MAX_STR_LEN];
+    ipv6_addr_to_str(addr_str, &ike_ctx.remote_ip, IPV6_ADDR_MAX_STR_LEN);
+    uint32_t timeout = 5;
+
+
+    if (ike_ctx.state != IKE_STATE_ESTABLISHED) {
+            DEBUG("IKE not established\n");
+        goto error;
+    }
+    if (_build_delete_i(data_out, &len) < 0) {
+        DEBUG("Building IKE DELETE message failed\n");
+        goto error;
+    }
+    if (_send_data(addr_str, data_out, len) < 0) {
+        DEBUG("Sending IKE DELETE message failed\n");
+        goto error;
+    }
+    if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
+        DEBUG("Receiving IKE DELETE message failed\n");
+        // TODO: retry
+        goto error;
+    }
+    _reset_context();
     return 0;
 error:
     _reset_context();
@@ -385,10 +426,9 @@ static int _init_context(void)
     };
 
     ike_ctx = new_ike_ctx;
-    uint32_t _qenerate_key_start = xtimer_now_usec();
+    uint32_t _generate_key_start = xtimer_now_usec();
     _generate_key(); // TODO: check fail
-    uint32_t _qenerate_key_end = xtimer_now_usec();
-    printf("%7"PRIu32" generate_key\n", _qenerate_key_end - _qenerate_key_start);
+    key_gen_time = xtimer_now_usec() - _generate_key_start;
     return 0;
 }
 
@@ -527,12 +567,11 @@ static int _parse_init_r(char *msg, size_t msg_len)
         remaining_len -= cur_len;
         p += cur_len;
     }
-    uint32_t _qet_secrets_start = xtimer_now_usec();
+    uint32_t _get_secrets_start = xtimer_now_usec();
     if (_get_secrets() < 0) {
         DEBUG("Getting secrets failed\n");
     }
-    uint32_t _qet_secrets_end = xtimer_now_usec();
-    printf("%7"PRIu32" get_secret\n", _qet_secrets_end - _qet_secrets_start);
+    dh_time = xtimer_now_usec() - _get_secrets_start;
     chunk_t auth_secret;
     _get_auth_secret(&auth_secret);
     sha1_init_hmac(&ike_ctx.real_message_2_digest_ctx, auth_secret.ptr,
@@ -801,6 +840,51 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
         DEBUG("Authentication failed\n");
         return -1;
     }
+    return 0;
+}
+
+static int _build_delete_i(char *msg, size_t *msg_len)
+{
+    size_t cur_len = 0;
+    size_t new_len;
+    int error;
+
+    /* Construct IKE header */
+    ike_header_t hdr = {
+        .ike_sa_spi_i = htonll(ike_ctx.ike_spi_i),
+        .ike_sa_spi_r = htonll(ike_ctx.ike_spi_r),
+        .next_payload = IKE_PT_ENCRYPTED_AND_AUTHENTICATED,
+        .mjver_mnver = IKE_V2_MJVER | IKE_V2_MNVER,
+        .exchange_type = IKE_ET_INFORMATIONAL,
+        .flags = IKE_INITIATOR_FLAG,
+        .message_id = htonl(2),
+    };
+
+    memcpy(msg, &hdr, sizeof(hdr));
+    cur_len += sizeof(hdr);
+
+    /* Construct Delete payload */
+    error = build_delete_payload(msg + cur_len, MSG_BUF_LEN - cur_len, &new_len,
+                                 IKE_PT_NO_NEXT_PAYLOAD);
+    if (error < 0) {
+        return error;
+    }
+    cur_len += new_len;
+
+    /* Construct Encrypted payload */
+    chunk_t enc_in = {
+        .ptr = msg + sizeof(hdr),
+        .len = cur_len - sizeof(hdr),
+    };
+
+    error = build_encrypted_payload(msg + sizeof(hdr), MSG_BUF_LEN - sizeof(hdr), &new_len,
+                                    IKE_PT_DELETE,
+                                    enc_in, ike_ctx.sk_ei, ike_ctx.sk_ai);
+    if (error < 0) {
+        return error;
+    }
+
+    *msg_len = sizeof(hdr) + new_len;
     return 0;
 }
 

@@ -57,7 +57,8 @@
         "system_error": "c",
         "typeinfo": "c",
         "netif.h": "c",
-        "sock_tls.h": "c"
+        "sock_tls.h": "c",
+        "ratio": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,

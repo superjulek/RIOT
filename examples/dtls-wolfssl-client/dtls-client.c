@@ -122,7 +122,7 @@ int dtls_client(int argc, char **argv)
         }
     } while(ret != SSL_SUCCESS);
     uint32_t wolfSSL_connect_end = xtimer_now_usec();
-    printf("%7"PRIu32" get_secret\n", wolfSSL_connect_end - wolfSSL_connect_start);
+    printf("%7"PRIu32" total\n", wolfSSL_connect_end - wolfSSL_connect_start);
 
     /* set remote endpoint */
     sock_dtls_set_endpoint(sk, &remote);
@@ -149,6 +149,113 @@ int dtls_client(int argc, char **argv)
 
     /* Clean up and exit. */
     LOG(LOG_INFO, "Closing connection.\n");
+    sock_dtls_session_destroy(sk);
+    sock_dtls_close(sk);
+    return 0;
+}
+
+int dtls_benchmark(int argc, char **argv)
+{
+    int ret = 0;
+    char buf[APP_DTLS_BUF_SIZE] = {0};
+    char *iface;
+    char *addr_str;
+    int connect_timeout = 0;
+    const int max_connect_timeouts = 5;
+
+    if (argc != 2) {
+        usage(argv[0]);
+        return -1;
+    }
+
+
+    addr_str = argv[1];
+    sock_udp_ep_t local = SOCK_IPV6_EP_ANY;
+    sock_udp_ep_t remote = SOCK_IPV6_EP_ANY;
+
+    /* Parsing <address> */
+    iface = ipv6_addr_split_iface(addr_str);
+    if (!iface) {
+        if (gnrc_netif_numof() == 1) {
+            /* assign the single interface found in gnrc_netif_numof() */
+            remote.netif = (uint16_t)gnrc_netif_iter(NULL)->pid;
+        }
+    }
+    else {
+        gnrc_netif_t *netif = gnrc_netif_get_by_pid(atoi(iface));
+        if (netif == NULL) {
+            LOG(LOG_ERROR, "ERROR: interface not valid\n");
+            usage(argv[0]);
+            return -1;
+        }
+        remote.netif = (uint16_t)netif->pid;
+    }
+    if (ipv6_addr_from_str((ipv6_addr_t *)remote.addr.ipv6, addr_str) == NULL) {
+        LOG(LOG_ERROR, "ERROR: unable to parse destination address\n");
+        usage(argv[0]);
+        return -1;
+    }
+    remote.port = SERVER_PORT;
+    if (sock_dtls_create(sk, &local, &remote, 0, wolfDTLSv1_2_client_method()) != 0) {
+        LOG(LOG_ERROR, "ERROR: Unable to create DTLS sock\n");
+        return -1;
+    }
+
+    wolfSSL_CTX_set_verify(sk->ctx, SSL_VERIFY_NONE, 0);
+
+    if (sock_dtls_session_create(sk) < 0)
+        return -1;
+    wolfSSL_dtls_set_timeout_init(sk->ssl, 20);
+    LOG(LOG_INFO, "connecting to server...\n");
+    /* attempt to connect until the connection is successful */
+    uint32_t wolfSSL_connect_start;
+    do {
+        wolfSSL_connect_start = xtimer_now_usec();
+        ret = wolfSSL_connect(sk->ssl);
+        if ((ret != SSL_SUCCESS)) {
+            if(wolfSSL_get_error(sk->ssl, ret) == SOCKET_ERROR_E) {
+                LOG(LOG_WARNING, "Socket error: reconnecting...\n");
+                sock_dtls_session_destroy(sk);
+                connect_timeout = 0;
+                if (sock_dtls_session_create(sk) < 0)
+                    return -1;
+            }
+            if ((wolfSSL_get_error(sk->ssl, ret) == WOLFSSL_ERROR_WANT_READ) &&
+                    (connect_timeout++ >= max_connect_timeouts)) {
+                LOG(LOG_WARNING, "Server not responding: reconnecting...\n");
+                sock_dtls_session_destroy(sk);
+                connect_timeout = 0;
+                if (sock_dtls_session_create(sk) < 0)
+                    return -1;
+            }
+        }
+    } while(ret != SSL_SUCCESS);
+    uint32_t wolfSSL_connect_end = xtimer_now_usec();
+    printf("%7"PRIu32" total\n", wolfSSL_connect_end - wolfSSL_connect_start);
+
+    /* set remote endpoint */
+    sock_dtls_set_endpoint(sk, &remote);
+
+    int gcnt = 0;
+    while(true)
+    {
+        ret = wolfSSL_read(sk->ssl, buf, sizeof(buf));
+        if (ret <= 0)
+        {
+            printf("Error receiving %d\n", ret);
+            break;
+        }
+        ret = wolfSSL_write(sk->ssl, buf, ret);
+        if (ret <= 0)
+        {
+            printf("Error sending %d\n", ret);
+            break;
+        }
+        gcnt++;
+    }
+
+    LOG(LOG_INFO, "Closing connection.\n");
+    printf("Success: %d.\n", gcnt);
     sock_dtls_session_destroy(sk);
     sock_dtls_close(sk);
     return 0;

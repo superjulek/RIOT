@@ -97,6 +97,9 @@ int build_notify_payload(char *start, size_t max_len, size_t *new_len,
                          chunk_t spi,
                          chunk_t notify);
 
+int build_delete_payload(char *start, size_t max_len, size_t *new_len,
+                         ike_payload_type_t next_payload);
+
 #ifdef __cplusplus
 }
 #endif

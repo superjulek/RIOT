@@ -19,6 +19,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "ike/ike.h"
 #include "shell.h"
@@ -49,6 +50,27 @@ int _parse_ike_cmd(int argc, char **argv)
             }
             res = ike_init(argv[i + 1]);
             break;
+        case 't':
+            if (i + 1 != argc) {
+                puts("Too many arguments");
+                break;
+            }
+            res = ike_terminate();
+            break;
+        case 'l':
+            if (i + 2 >= argc) {
+                puts("Not enough arguments");
+                break;
+            }
+            for (int j = 0; j < atoi(argv[i + 2]); ++j)
+            {
+                printf("Round %d\n", j);
+                res = ike_init(argv[i + 1]);
+                res |= ike_terminate();
+                if (res)
+                    break;
+            }
+            break;
         default:
             break;
         }
@@ -67,4 +89,10 @@ static void _print_ike_usage(char *cmdname)
     printf("%s [-i addrs]\n",
            cmdname);
     puts("     -i - initialize IKE SA to addrs");
+    printf("%s [-t]\n",
+           cmdname);
+    puts("     -t - terminate established IKE SA");
+    printf("%s [-l addrs num]\n",
+           cmdname);
+    puts("     -l - establish and terminate IKE SA in loop num times to addrs");
 }
