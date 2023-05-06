@@ -140,3 +140,89 @@ int udp_client(int argc, char **argv)
     sock_udp_close(sck);
     return 0;
 }
+
+int udp_benchmark(int argc, char **argv)
+{
+    int ret = 0;
+    uint8_t buf[APP_UDP_BUF_SIZE] = {0};
+    char *iface;
+    char *addr_str;
+
+    if (argc != 2) {
+        usage(argv[0]);
+        return -1;
+    }
+
+    addr_str = argv[1];
+    sock_udp_ep_t local = SOCK_IPV6_EP_ANY;
+    sock_udp_ep_t remote = SOCK_IPV6_EP_ANY;
+    sock_udp_t sckv;
+    sock_udp_t *sck = &sckv;
+
+    /* Parsing <address> */
+    iface = ipv6_addr_split_iface(addr_str);
+    if (!iface) {
+        if (gnrc_netif_numof() == 1) {
+            /* assign the single interface found in gnrc_netif_numof() */
+            remote.netif = (uint16_t)gnrc_netif_iter(NULL)->pid;
+        }
+    }
+    else {
+        gnrc_netif_t *netif = gnrc_netif_get_by_pid(atoi(iface));
+        if (netif == NULL) {
+            printf("ERROR: interface not valid\n");
+            usage(argv[0]);
+            return -1;
+        }
+        remote.netif = (uint16_t)netif->pid;
+    }
+    if (ipv6_addr_from_str((ipv6_addr_t *)remote.addr.ipv6, addr_str) == NULL) {
+        printf("ERROR: unable to parse destination address\n");
+        usage(argv[0]);
+        return -1;
+    }
+    remote.port = SERVER_PORT;
+    if (sock_udp_create(sck, &local, &remote, 0)) {
+        printf("ERROR: Unable to create UDP sock\n");
+        return -1;
+    }
+
+    int i_max = 5;
+    for (int i = 1; i <= i_max; ++i)
+    {
+        printf("Sending first message %d time ...\n", i);
+        const char *hello_msg = "Hello";
+        if (sock_udp_send(sck, hello_msg, strlen(hello_msg), &remote) <= 0)
+        {
+            printf("Error sending\n");
+            if (i == i_max)
+            {
+                sock_udp_close(sck);
+                return -1;
+            }
+        }
+        break;
+    }
+    int gcnt = 0;
+    while(true)
+    {
+        ret = sock_udp_recv(sck, buf, sizeof(buf), 20000000, NULL);
+        if (ret <= 0)
+        {
+            printf("Error receiving %d\n", ret);
+            break;
+        }
+        ret = sock_udp_send(sck, buf, ret, &remote);
+        if (ret <= 0)
+        {
+            printf("Error sending %d\n", ret);
+            break;
+        }
+        gcnt++;
+    }
+    /* Clean up and exit. */
+    printf("Closing connection.\n");
+    printf("Success: %d.\n", gcnt);
+    sock_udp_close(sck);
+    return 0;
+}
