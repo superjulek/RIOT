@@ -58,7 +58,9 @@
         "typeinfo": "c",
         "netif.h": "c",
         "sock_tls.h": "c",
-        "ratio": "c"
+        "ratio": "c",
+        "clients.h": "c",
+        "clients-cfg.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
