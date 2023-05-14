@@ -60,7 +60,8 @@
         "sock_tls.h": "c",
         "ratio": "c",
         "clients.h": "c",
-        "clients-cfg.h": "c"
+        "clients-cfg.h": "c",
+        "error-ssl.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
