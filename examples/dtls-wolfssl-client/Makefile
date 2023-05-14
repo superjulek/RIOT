@@ -35,9 +35,16 @@ USEMODULE += ike
 USEMODULE += net_benchmark
 
 USEMODULE += sock_udp
+
 USEPKG += wolfssl
 USEMODULE += wolfssl_dtls
-USEMODULE += wolfcrypt_rsa wolfcrypt_dh
+USEMODULE += wolfcrypt_rsa
+USEMODULE += wolfcrypt_dh
+USEMODULE += wolfcrypt_ffdhe_2048
+USEMODULE += wolfssl_tls
+USEMODULE += wolfcrypt_ecc
+
+CFLAGS += -Warray-bounds=0
 
 CFLAGS_OPT = -O3#-Og -ggdb
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(5*THREAD_STACKSIZE_DEFAULT\)
