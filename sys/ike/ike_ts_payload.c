@@ -72,6 +72,7 @@ int process_ts_payload(char *start, size_t max_len, size_t *cur_len,
     }
     ike_ts_payload_const_t *ph;
     ike_ts_structure_const_t *ts;
+    ipv6_addr_t *tmp_addr;
 
     if (*cur_len !=
         sizeof(ike_generic_payload_header_t) + sizeof(ike_ts_payload_const_t) +
@@ -88,7 +89,9 @@ int process_ts_payload(char *start, size_t max_len, size_t *cur_len,
     if (ntohs(ts->length) != sizeof(ike_ts_structure_const_t)) {
         return -1;
     }
-    *ts_start = *(ipv6_addr_t *)ts->start_address;
-    *ts_end = *(ipv6_addr_t *)ts->end_address;
+    tmp_addr = (ipv6_addr_t *)ts->start_address;
+    *ts_start = *tmp_addr;
+    tmp_addr = (ipv6_addr_t *)ts->end_address;
+    *ts_end = *tmp_addr;
     return 0;
 }

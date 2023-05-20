@@ -61,7 +61,8 @@
         "ratio": "c",
         "clients.h": "c",
         "clients-cfg.h": "c",
-        "error-ssl.h": "c"
+        "error-ssl.h": "c",
+        "string.h": "c"
     },
     "[shellscript][c][cpp]": {
         "editor.tabSize": 4,
