@@ -262,6 +262,7 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
     sock_udp_ep_t remote = SOCK_IPV6_EP_ANY;
     sock_udp_t sckv;
     sock_udp_t *sck = &sckv;
+    ipv6_addr_t *tmp_addr;
 
     /* Parsing <address> */
     iface = ipv6_addr_split_iface(addr_str);
@@ -283,7 +284,8 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
         DEBUG("ERROR: unable to parse destination address\n");
         return -1;
     }
-    ike_ctx.remote_ip = *(ipv6_addr_t*)remote.addr.ipv6;
+    tmp_addr = (ipv6_addr_t*)remote.addr.ipv6;
+    ike_ctx.remote_ip = *tmp_addr;
     remote.port = 500;
     local.port = 500;
     if (sock_udp_create(sck, &local, &remote, 0)) {
@@ -342,7 +344,8 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
         sock_udp_close(sck);
         return -1;
     }
-    ike_ctx.local_ip = *(ipv6_addr_t*)aux.local.addr.ipv6;
+    ipv6_addr_t *tmp_addr = (ipv6_addr_t*)aux.local.addr.ipv6;
+    ike_ctx.local_ip = *tmp_addr;
     *datalen = recv_len;
     sock_udp_close(sck);
     return 0;

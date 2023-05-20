@@ -1,3 +1,5 @@
+
+#include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/error-ssl.h>
 #include <sock_tls.h>
@@ -42,9 +44,12 @@ static int dtls_connect(const char *addr, uint16_t port)
     puts("DTLS: Connecting to server");
     uint32_t wolfSSL_connect_start = xtimer_now_usec();
 
-    if (wolfSSL_connect(_socket.ssl) != SSL_SUCCESS) {
-        puts("DTLS: Unable to connect to server");
+    int ret = wolfSSL_connect(_socket.ssl);
+    if (ret != SSL_SUCCESS) {
+        printf("DTLS: Unable to connect to server (%d)\n", wolfSSL_get_error(_socket.ssl, ret));
         sock_dtls_session_destroy(&_socket);
+        wolfSSL_CTX_free(_socket.ctx);
+        wolfSSL_CTX_free(_socket.ctx);
         sock_dtls_close(&_socket);
         return -1;
     }
@@ -76,6 +81,8 @@ static int dtls_receive(char *msg, size_t max_len)
 static int dtls_close(void)
 {
     sock_dtls_session_destroy(&_socket);
+    wolfSSL_CTX_free(_socket.ctx);
+    wolfSSL_CTX_free(_socket.ctx);
     sock_dtls_close(&_socket);
     return 0;
 }

@@ -7,34 +7,20 @@ BOARD ?= native
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
 
-# Include packages that pull up and auto-init the link layer.
-# NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
-USEMODULE += netdev_default
 USEMODULE += auto_init_gnrc_netif
-# Activate ICMPv6 error messages
-USEMODULE += gnrc_icmpv6_error
-# Specify the mandatory networking module for a IPv6 routing node
-USEMODULE += gnrc_ipv6_router_default
-# Add a routing protocol
-USEMODULE += gnrc_rpl
-USEMODULE += auto_init_gnrc_rpl
-# Additional networking modules that can be dropped if not needed
+USEMODULE += gnrc_ipv6_default
 USEMODULE += gnrc_icmpv6_echo
-USEMODULE += shell_cmd_gnrc_udp
-# Add also the shell, some shell commands
+USEMODULE += gnrc_icmpv6_error
 USEMODULE += shell
 USEMODULE += shell_cmds_default
 USEMODULE += ps
-USEMODULE += netstats_l2
-USEMODULE += netstats_ipv6
-USEMODULE += netstats_rpl
 
 USEMODULE += ssp
 
-USEMODULE += ike
-USEMODULE += net_benchmark
 
 USEMODULE += sock_udp
+
+# USEMODULE += ike
 
 USEPKG += wolfssl
 USEMODULE += wolfssl_dtls
@@ -44,17 +30,24 @@ USEMODULE += wolfcrypt_ffdhe_2048
 USEMODULE += wolfssl_tls
 USEMODULE += wolfcrypt_ecc
 
-CFLAGS += -Warray-bounds=0
+# For native / STM
+# USEMODULE += netdev_default
 
-CFLAGS_OPT = -O3#-Og -ggdb
+# For ESP
+USEMODULE += esp_wifi
+USEMODULE += esp_idf_heap
+CFLAGS += -DESP_WIFI_SSID=\"TestNet\"
+CFLAGS += -DESP_WIFI_PASS=\"password\"
+CFLAGS += -DTHREAD_STACKSIZE_DEFAULT=2048
+
+#CFLAGS += -Warray-bounds=0
+
+CFLAGS_OPT = -Os
+#CFLAGS_OPT = -O3
+#CFLAGS_OPT = -g -ggdb3 -fno-omit-frame-pointer -O0
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(5*THREAD_STACKSIZE_DEFAULT\)
-CFLAGS += -DISR_STACKSIZE=1024
+#CFLAGS += -DISR_STACKSIZE=1024
 
-# Optionally include DNS support. This includes resolution of names at an
-# upstream DNS server and the handling of RDNSS options in Router Advertisements
-# to auto-configure that upstream DNS server.
-# USEMODULE += sock_dns              # include DNS client
-# USEMODULE += gnrc_ipv6_nib_dns     # include RDNSS option handling
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
@@ -67,10 +60,6 @@ DEVELHELP ?= 1
 # run a shell with ifconfig to get the real link lokal address.
 #IPV6_STATIC_LLADDR ?= '"fe80::cafe:cafe:cafe:1"'
 #CFLAGS += -DGNRC_IPV6_STATIC_LLADDR=$(IPV6_STATIC_LLADDR)
-
-# Uncomment this to join RPL DODAGs even if DIOs do not contain
-# DODAG Configuration Options (see the doc for more info)
-# CFLAGS += -DCONFIG_GNRC_RPL_DODAG_CONF_OPTIONAL_ON_JOIN
 
 # Change this to 0 show compiler invocation lines by default:
 QUIET ?= 1
