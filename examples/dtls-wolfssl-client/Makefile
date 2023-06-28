@@ -10,35 +10,38 @@ RIOTBASE ?= $(CURDIR)/../..
 USEMODULE += auto_init_gnrc_netif
 USEMODULE += gnrc_ipv6_default
 USEMODULE += gnrc_icmpv6_echo
-USEMODULE += gnrc_icmpv6_error
+#USEMODULE += gnrc_icmpv6_error
 USEMODULE += shell
 USEMODULE += shell_cmds_default
-USEMODULE += ps
+#USEMODULE += ps
 
-USEMODULE += ssp
+#USEMODULE += ssp
 
 
 USEMODULE += sock_udp
 
-# USEMODULE += ike
+#USEMODULE += ike
 
 USEPKG += wolfssl
 USEMODULE += wolfssl_dtls
 USEMODULE += wolfcrypt_rsa
 USEMODULE += wolfcrypt_dh
-USEMODULE += wolfcrypt_ffdhe_2048
-USEMODULE += wolfssl_tls
-USEMODULE += wolfcrypt_ecc
+USEMODULE += wolfcrypt_ffdhe_2048 # for DHE
+#USEMODULE += wolfssl_tls
+USEMODULE += wolfcrypt_ecc # for DHE
 
-# For native / STM
-# USEMODULE += netdev_default
+ifeq (esp8266-esp-12x,$(BOARD))
+  # For ESP
+  USEMODULE += esp_wifi
+  USEMODULE += esp_idf_heap
+  CFLAGS += -DESP_WIFI_SSID=\"TestNet\"
+  CFLAGS += -DESP_WIFI_PASS=\"password\"
+  CFLAGS += -DTHREAD_STACKSIZE_DEFAULT=2048
+else
+  # For native / STM
+  USEMODULE += netdev_default
+endif
 
-# For ESP
-USEMODULE += esp_wifi
-USEMODULE += esp_idf_heap
-CFLAGS += -DESP_WIFI_SSID=\"TestNet\"
-CFLAGS += -DESP_WIFI_PASS=\"password\"
-CFLAGS += -DTHREAD_STACKSIZE_DEFAULT=2048
 
 #CFLAGS += -Warray-bounds=0
 
