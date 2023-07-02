@@ -37,6 +37,7 @@ static int dtls_connect(const char *addr, uint16_t port)
 
     wolfSSL_CTX_set_verify(_socket.ctx, SSL_VERIFY_NONE, 0);
     wolfSSL_CTX_set_cipher_list(_socket.ctx, "DHE-RSA-AES128-SHA");
+    // wolfSSL_CTX_set_cipher_list(_socket.ctx, "AES128-SHA");
 
     if (sock_dtls_session_create(&_socket) < 0)
         return -1;

@@ -35,15 +35,19 @@ static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 extern int dtls_client_cmd(int argc, char **argv);
 extern int dtls_benchmark_cmd(int argc, char **argv);
 extern int dtls_loop_cmd(int argc, char **argv);
+extern int dtls_send_cmd(int argc, char **argv);
 extern int udp_client_cmd(int argc, char **argv);
 extern int udp_benchmark_cmd(int argc, char **argv);
+extern int udp_send_cmd(int argc, char **argv);
 
 static const shell_command_t shell_commands[] = {
     { "dtlsc", "Start a DTLS client", dtls_client_cmd },
     { "dtlsb", "Start a DTLS benchmark", dtls_benchmark_cmd },
     { "dtlsl", "Start a DTLS loop", dtls_loop_cmd },
+    { "dtlss", "Send data via DTLS socket", dtls_send_cmd },
     { "udpc", "Start a UDP client", udp_client_cmd },
     { "udpb", "Start a UDP benchmark", udp_benchmark_cmd },
+    { "udps", "Send data via UDP socket", udp_send_cmd },
     { NULL, NULL, NULL }
 };
 
