@@ -13,14 +13,14 @@ USEMODULE += gnrc_icmpv6_echo
 #USEMODULE += gnrc_icmpv6_error
 USEMODULE += shell
 USEMODULE += shell_cmds_default
-#USEMODULE += ps
+USEMODULE += ps
 
 #USEMODULE += ssp
 
 
 USEMODULE += sock_udp
 
-#USEMODULE += ike
+# USEMODULE += ike
 
 USEPKG += wolfssl
 USEMODULE += wolfssl_dtls

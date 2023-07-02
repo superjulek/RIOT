@@ -107,6 +107,45 @@ error:
     return -1;
 }
 
+uint8_t buf[1001];
+
+int send_cmd(client_t *c, const char *addr, int size)
+{
+    if ((size_t) size > sizeof(buf))
+    {
+        puts("Requested too big size");
+        return -1;
+    }
+    static client_t *local_client = NULL;
+    if (local_client && local_client != c)
+    {
+        puts("Closing last client");
+        local_client->close();
+        local_client = NULL;
+    }
+    if (!local_client) {
+        puts("Connecting");
+        local_client = c;
+        if (local_client->connect(addr, SERVER_PORT) < 0)
+            return -1;
+    }
+    if (size == 0)
+        return 0;
+    printf("Sending %d bytes\n", size);
+    if (local_client->send((char*)buf, size) < 0)
+        goto error;
+    if (local_client->receive((char*)buf, sizeof(buf)) != size)
+    {
+        puts("Server returned different size");
+        goto error;
+    }
+    return 0;
+error:
+    local_client->close();
+    local_client = NULL;
+    return -1;
+}
+
 int udp_client_cmd(int argc, char **argv)
 {
     if (argc != 2) {
@@ -121,6 +160,14 @@ int udp_benchmark_cmd(int argc, char **argv)
         return -1;
     }
     return benchmark_cmd(&udp_client, argv[1]);
+}
+
+int udp_send_cmd(int argc, char **argv)
+{
+    if (argc != 3) {
+        return -1;
+    }
+    return send_cmd(&udp_client, argv[1], atoi(argv[2]));
 }
 
 int dtls_client_cmd(int argc, char **argv)
@@ -145,4 +192,12 @@ int dtls_loop_cmd(int argc, char **argv)
         return -1;
     }
     return loop_cmd(&dtls_client, argv[1], atoi(argv[2]));
+}
+
+int dtls_send_cmd(int argc, char **argv)
+{
+    if (argc != 3) {
+        return -1;
+    }
+    return send_cmd(&dtls_client, argv[1], atoi(argv[2]));
 }
