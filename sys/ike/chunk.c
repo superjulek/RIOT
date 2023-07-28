@@ -26,8 +26,7 @@ chunk_t empty_chunk = {
 };
 void free_chunk(chunk_t *chunk)
 {
-    if (chunk->len)
-    {
+    if (chunk->len) {
         free(chunk->ptr);
     }
     chunk->len = 0;
@@ -39,6 +38,7 @@ chunk_t malloc_chunk(size_t size)
         .len = size,
         .ptr = malloc(size),
     };
+
     return chunk;
 }
 

@@ -222,12 +222,12 @@ int process_sa_payload(char *start, size_t max_len, size_t *cur_len,
     if (remaining_len < sizeof(ike_proposal_substructure_const_t)) {
         return -1;
     }
-    ph = (ike_proposal_substructure_const_t*)(start + sizeof(ike_generic_payload_header_t));
+    ph = (ike_proposal_substructure_const_t *)(start + sizeof(ike_generic_payload_header_t));
     remaining_len -= sizeof(ike_proposal_substructure_const_t);
     if (ph->spi_size > remaining_len || ph->spi_size > spi->len) {
         return -1;
     }
-    spi_pld = (uint8_t*)ph + sizeof(ike_proposal_substructure_const_t);
+    spi_pld = (uint8_t *)ph + sizeof(ike_proposal_substructure_const_t);
     memcpy(spi->ptr, spi_pld, ph->spi_size);
 
     // TODO
