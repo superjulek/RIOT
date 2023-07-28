@@ -147,73 +147,84 @@ int ike_init(char *addr_str)
         }
     }
     uint32_t _reset_context_ts = xtimer_now_usec();
+
     if (_init_context() < 0) {
         DEBUG("Initiating IKE context failed\n");
         goto error;
     }
     uint32_t _init_context_ts = xtimer_now_usec();
+
     if (_build_init_i(data_out, &len) < 0) {
         DEBUG("Building IKE INIT message failed\n");
         goto error;
     }
     uint32_t _build_init_i_ts = xtimer_now_usec();
+
     if (_send_data(addr_str, data_out, len) < 0) {
         DEBUG("Sending IKE INIT message failed\n");
         goto error;
     }
     uint32_t _send_data1_ts = xtimer_now_usec();
+
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
         DEBUG("Receiving IKE INIT message failed\n");
         // TODO: retry
         goto error;
     }
     uint32_t _receive_data1_ts = xtimer_now_usec();
+
     if (_parse_init_r(data_in, len) < 0) {
         DEBUG("Parsing IKE INIT message failed\n");
         goto error;
     }
     uint32_t _parse_init_r_ts = xtimer_now_usec();
+
     if (_build_auth_i(data_out, &len) < 0) {
         DEBUG("Building IKE AUTH message failed\n");
         goto error;
     }
     uint32_t _build_auth_i_ts = xtimer_now_usec();
+
     if (_send_data(addr_str, data_out, len) < 0) {
         DEBUG("Sending IKE AUTH message failed\n");
         goto error;
     }
     uint32_t _send_data2_ts = xtimer_now_usec();
+
     if (_receive_data(addr_str, data_in, &len, timeout) < 0) {
         DEBUG("Receiving IKE AUTH message failed\n");
         // TODO: retry
         goto error;
     }
     uint32_t _receive_data2_ts = xtimer_now_usec();
+
     if (_parse_auth_r(data_in, len) < 0) {
         DEBUG("Parsing IKE AUTH message failed\n");
         goto error;
     }
     uint32_t _parse_auth_r_ts = xtimer_now_usec();
+
     if (_generate_child_key() < 0) {
         DEBUG("Generating Child Keying material failed\n");
         goto error;
     }
     ike_ctx.state = IKE_STATE_ESTABLISHED;
     uint32_t total = xtimer_now_usec() - start;
+
     printf("Stats\n");
-    printf("%7"PRIu32" us total established in \n", total);
-    printf("%7"PRIu32" us reset context\n", _reset_context_ts - start);
-    printf("%7"PRIu32" us init context\n", _init_context_ts - _reset_context_ts);
-    printf("%7"PRIu32" us build INIT\n", _build_init_i_ts - _init_context_ts);
-    printf("%7"PRIu32" us send INIT\n", _send_data1_ts - _build_init_i_ts);
-    printf("%7"PRIu32" us receive INIT\n", _receive_data1_ts - _send_data1_ts);
-    printf("%7"PRIu32" us parse INIT\n", _parse_init_r_ts - _receive_data1_ts);
-    printf("%7"PRIu32" us build AUTH\n", _build_auth_i_ts - _parse_init_r_ts);
-    printf("%7"PRIu32" us send AUTH\n", _send_data2_ts - _build_auth_i_ts);
-    printf("%7"PRIu32" us receive AUTH\n", _receive_data2_ts - _send_data2_ts);
-    printf("%7"PRIu32" us parse AUTH\n", _parse_auth_r_ts - _receive_data2_ts);
-    printf("%7"PRIu32" us generate_key\n", key_gen_time);
-    printf("%7"PRIu32" us get_secret\n", dh_time);
+    printf("%7" PRIu32 " us total established in \n", total);
+    printf("%7" PRIu32 " us reset context\n", _reset_context_ts - start);
+    printf("%7" PRIu32 " us init context\n", _init_context_ts - _reset_context_ts);
+    printf("%7" PRIu32 " us build INIT\n", _build_init_i_ts - _init_context_ts);
+    printf("%7" PRIu32 " us send INIT\n", _send_data1_ts - _build_init_i_ts);
+    printf("%7" PRIu32 " us receive INIT\n", _receive_data1_ts - _send_data1_ts);
+    printf("%7" PRIu32 " us parse INIT\n", _parse_init_r_ts - _receive_data1_ts);
+    printf("%7" PRIu32 " us build AUTH\n", _build_auth_i_ts - _parse_init_r_ts);
+    printf("%7" PRIu32 " us send AUTH\n", _send_data2_ts - _build_auth_i_ts);
+    printf("%7" PRIu32 " us receive AUTH\n", _receive_data2_ts - _send_data2_ts);
+    printf("%7" PRIu32 " us parse AUTH\n", _parse_auth_r_ts - _receive_data2_ts);
+    printf("%7" PRIu32 " us generate_key\n", key_gen_time);
+    printf("%7" PRIu32 " us get_secret\n", dh_time);
 
     return 0;
 error:
@@ -227,12 +238,13 @@ int ike_terminate(void)
     char data_out[MSG_BUF_LEN];
     char data_in[MSG_BUF_LEN];
     char addr_str[IPV6_ADDR_MAX_STR_LEN];
+
     ipv6_addr_to_str(addr_str, &ike_ctx.remote_ip, IPV6_ADDR_MAX_STR_LEN);
     uint32_t timeout = 5;
 
 
     if (ike_ctx.state != IKE_STATE_ESTABLISHED) {
-            DEBUG("IKE not established\n");
+        DEBUG("IKE not established\n");
         goto error;
     }
     if (_build_delete_i(data_out, &len) < 0) {
@@ -284,7 +296,7 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
         DEBUG("ERROR: unable to parse destination address\n");
         return -1;
     }
-    tmp_addr = (ipv6_addr_t*)remote.addr.ipv6;
+    tmp_addr = (ipv6_addr_t *)remote.addr.ipv6;
     ike_ctx.remote_ip = *tmp_addr;
     remote.port = 500;
     local.port = 500;
@@ -292,8 +304,7 @@ static int _send_data(char *addr_str, char *data, size_t datalen)
         DEBUG("ERROR: Unable to create UDP sock\n");
         return -1;
     }
-    if (sock_udp_send(sck, data, datalen, &remote) < 0)
-    {
+    if (sock_udp_send(sck, data, datalen, &remote) < 0) {
         DEBUG("ERROR: Data not sent\n");
         sock_udp_close(sck);
         return -1;
@@ -310,7 +321,7 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
     sock_udp_t sckv;
     sock_udp_t *sck = &sckv;
     ssize_t recv_len;
-    sock_udp_aux_rx_t aux = {.flags = SOCK_AUX_GET_LOCAL};
+    sock_udp_aux_rx_t aux = { .flags = SOCK_AUX_GET_LOCAL };
 
     /* Parsing <address> */
     iface = ipv6_addr_split_iface(addr_str);
@@ -344,7 +355,8 @@ static int _receive_data(char *addr_str, char *data, size_t *datalen, uint32_t t
         sock_udp_close(sck);
         return -1;
     }
-    ipv6_addr_t *tmp_addr = (ipv6_addr_t*)aux.local.addr.ipv6;
+    ipv6_addr_t *tmp_addr = (ipv6_addr_t *)aux.local.addr.ipv6;
+
     ike_ctx.local_ip = *tmp_addr;
     *datalen = recv_len;
     sock_udp_close(sck);
@@ -430,6 +442,7 @@ static int _init_context(void)
 
     ike_ctx = new_ike_ctx;
     uint32_t _generate_key_start = xtimer_now_usec();
+
     _generate_key(); // TODO: check fail
     key_gen_time = xtimer_now_usec() - _generate_key_start;
     return 0;
@@ -494,6 +507,7 @@ static int _build_init_i(char *msg, size_t *msg_len)
     memcpy(msg, &hdr, sizeof(hdr));
     *msg_len = cur_len;
     chunk_t auth_secret;
+
     _get_auth_secret(&auth_secret);
     sha1_init_hmac(&ike_ctx.real_message_1_digest_ctx, auth_secret.ptr,
                    auth_secret.len);
@@ -571,11 +585,13 @@ static int _parse_init_r(char *msg, size_t msg_len)
         p += cur_len;
     }
     uint32_t _get_secrets_start = xtimer_now_usec();
+
     if (_get_secrets() < 0) {
         DEBUG("Getting secrets failed\n");
     }
     dh_time = xtimer_now_usec() - _get_secrets_start;
     chunk_t auth_secret;
+
     _get_auth_secret(&auth_secret);
     sha1_init_hmac(&ike_ctx.real_message_2_digest_ctx, auth_secret.ptr,
                    auth_secret.len);
@@ -621,6 +637,7 @@ static int _build_auth_i(char *msg, size_t *msg_len)
     { .len = new_len - sizeof(ike_generic_payload_header_t),
       .ptr = msg + cur_len - new_len + sizeof(ike_generic_payload_header_t) };
     chunk_t maced_id;
+
     _prf(ike_ctx.sk_pi, idx, &maced_id);
     sha1_update(&ike_ctx.real_message_1_digest_ctx, maced_id.ptr, maced_id.len);
     free_chunk(&maced_id);
@@ -748,9 +765,9 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     while (remaining_len > 0) {
         switch (next_type) {
         case IKE_PT_SECURITY_ASSOCIATION:
-            {}
+        {}
             uint32_t spi;
-            chunk_t n_spi = {.ptr = (char*)&spi, .len = sizeof(spi)};
+            chunk_t n_spi = { .ptr = (char *)&spi, .len = sizeof(spi) };
             if (process_sa_payload(p, remaining_len, &cur_len, &next_type, NULL, NULL, NULL,
                                    NULL, NULL, NULL, NULL, &n_spi) < 0) {
                 DEBUG("SA payload parsing failed\n");
@@ -766,12 +783,11 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
                 return -1;
             }
             idx.len = cur_len - sizeof(ike_generic_payload_header_t);
-            if (idx.len > countof(idx_buff))
-            {
+            if (idx.len > countof(idx_buff)) {
                 DEBUG("IDX too long\n");
                 return -1;
             }
-            idx.ptr = (char*)idx_buff;
+            idx.ptr = (char *)idx_buff;
             memcpy(idx.ptr, p + sizeof(ike_generic_payload_header_t), idx.len);
             DEBUG("Received ID (%d):\n", ike_ctx.remote_id.type);
             DEBUG_CHUNK(ike_ctx.remote_id.id, 8);
@@ -827,9 +843,10 @@ static int _parse_auth_r_decrypted(char *msg, size_t msg_len, ike_payload_type_t
     // verify
     /* Construct Authentication */
     uint8_t authed_data_buff[HASH_SIZE_SHA1];
-    chunk_t authed_data = {.len = sizeof(authed_data_buff),
-                           .ptr = (char*)authed_data_buff};
+    chunk_t authed_data = { .len = sizeof(authed_data_buff),
+                            .ptr = (char *)authed_data_buff };
     chunk_t maced_id;
+
     _prf(ike_ctx.sk_pr, idx, &maced_id);
 
     sha1_update(&ike_ctx.real_message_2_digest_ctx, ike_ctx.ike_nonce_i.ptr,
@@ -897,7 +914,7 @@ static int _generate_child_key(void)
     uint8_t int_i_buff[20];
     uint8_t enc_r_buff[16];
     uint8_t int_r_buff[20];
-    uint8_t nonces_buff[MAX_NONCE_SIZE*2];
+    uint8_t nonces_buff[MAX_NONCE_SIZE * 2];
     chunk_t enc_i = chunk_from_buff(enc_i_buff);
     chunk_t int_i = chunk_from_buff(int_i_buff);
     chunk_t enc_r = chunk_from_buff(enc_r_buff);
@@ -905,13 +922,13 @@ static int _generate_child_key(void)
     chunk_t parts[] = { enc_i, int_i, enc_r, int_r };
     chunk_t nonces = { .len = ike_ctx.ike_nonce_i.len + ike_ctx.ike_nonce_r.len };
     chunk_t out;
-    if (nonces.len > countof(nonces_buff))
-    {
+
+    if (nonces.len > countof(nonces_buff)) {
         DEBUG("Nonces too big\n");
         return -1;
     }
 
-    nonces.ptr = (char*)nonces_buff;
+    nonces.ptr = (char *)nonces_buff;
     memcpy(nonces.ptr, ike_ctx.ike_nonce_i.ptr, ike_ctx.ike_nonce_i.len);
     memcpy(nonces.ptr + ike_ctx.ike_nonce_i.len, ike_ctx.ike_nonce_r.ptr, ike_ctx.ike_nonce_r.len);
     _prf_plus(ike_ctx.sk_d, nonces, 72, &out);
@@ -934,8 +951,8 @@ static int _generate_child_key(void)
     DEBUG_CHUNK(int_r, 8);
     free_chunk(&out);
     if (install_esp(int_i, int_r, enc_i, enc_r, ike_ctx.local_ip, ike_ctx.remote_ip,
-                    ike_ctx.child_spi_i, ike_ctx.child_spi_r, (int*)&ike_ctx.sp_in_idx,
-                    (int*)&ike_ctx.sp_out_idx)) {
+                    ike_ctx.child_spi_i, ike_ctx.child_spi_r, (int *)&ike_ctx.sp_in_idx,
+                    (int *)&ike_ctx.sp_out_idx)) {
         DEBUG("Failed to install SA in kernel database\n");
         return -1;
     }
@@ -993,7 +1010,8 @@ static int _generate_key(void)
         wc_FreeDhKey(&ike_ctx.wc_priv_key);
         return -1;
     }
-    if (wc_DhGenerateKeyPair(&ike_ctx.wc_priv_key, &ike_ctx.wc_rng, (unsigned char *)ike_ctx.privkey_i.ptr,
+    if (wc_DhGenerateKeyPair(&ike_ctx.wc_priv_key, &ike_ctx.wc_rng,
+                             (unsigned char *)ike_ctx.privkey_i.ptr,
                              &ike_ctx.privkey_i.len,
                              (unsigned char *)ike_ctx.pubkey_i.ptr, &ike_ctx.pubkey_i.len) != 0) {
         wc_FreeRng(&ike_ctx.wc_rng);
@@ -1094,12 +1112,14 @@ static void _get_auth_secret(chunk_t *inner_key)
 {
     char pad_text[] = "Key Pad for IKEv2";
     chunk_t textc = { .ptr = pad_text, .len = strlen(pad_text) };
+
     _prf(ike_ctx.psk, textc, inner_key);
 }
 
 static void _prf(chunk_t key, chunk_t seed, chunk_t *out)
 {
     sha1_context hash;
+
     sha1_init_hmac(&hash, (unsigned char *)key.ptr, key.len);
     sha1_update(&hash, (unsigned char *)seed.ptr, seed.len);
     *out = malloc_chunk(HASH_SIZE_SHA1);

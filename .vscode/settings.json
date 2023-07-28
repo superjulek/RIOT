@@ -1,4 +1,5 @@
 {
+    "uncrustify.configPath.linux": "uncrustify-riot.cfg",
     "editor.rulers": [
         80,
         120

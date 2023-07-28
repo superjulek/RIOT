@@ -234,14 +234,12 @@ int ipsec_get_sp_by_ts(ipsec_ts_t *ts, ipsec_sp_t *sp)
             < entry->sp_ext.tun_dst_mask) {
             continue;
         }
-        if (entry->sp_ext.prio < best_prio)
-        {
+        if (entry->sp_ext.prio < best_prio) {
             best_prio = entry->sp_ext.prio;
             best = entry;
         }
     }
-    if (best)
-    {
+    if (best) {
         *sp = best->sp_ext;
         return 0;
     }

@@ -10,7 +10,7 @@
 int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts)
 {
     ipv6_hdr_t *ipv6_hdr = gnrc_ipv6_get_header(pkt);
-    ipsec_ts_t tmp_ts = (ipsec_ts_t){0};
+    ipsec_ts_t tmp_ts = (ipsec_ts_t){ 0 };
 
 
     if (ipv6_hdr == NULL) {
@@ -22,9 +22,8 @@ int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts)
 #if IS_USED(MODULE_GNRC_NETTYPE_UDP)
     udp_hdr_t *udp_hdr;
     gnrc_pktsnip_t *udp;
-    if ((udp = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UDP)))
-    {
-        udp_hdr = (udp_hdr_t*) udp->data;
+    if ((udp = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UDP))) {
+        udp_hdr = (udp_hdr_t *)udp->data;
         tmp_ts.src_port = ntohs(udp_hdr->src_port.u16);
         tmp_ts.dst_port = ntohs(udp_hdr->dst_port.u16);
     }
@@ -32,9 +31,8 @@ int ipsec_ts_from_pkt(gnrc_pktsnip_t *pkt, ipsec_ts_t *ts)
 #if IS_USED(MODULE_GNRC_NETTYPE_TCP)
     tcp_hdr_t *tcp_hdr;
     gnrc_pktsnip_t *tcp;
-    if ((tcp = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_TCP)))
-    {
-        tcp_hdr = (tcp_hdr_t*) tcp->data;
+    if ((tcp = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_TCP))) {
+        tcp_hdr = (tcp_hdr_t *)tcp->data;
         tmp_ts.src_port = ntohs(tcp_hdr->src_port.u16);
         tmp_ts.dst_port = ntohs(tcp_hdr->dst_port.u16);
     }

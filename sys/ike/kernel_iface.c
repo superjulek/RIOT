@@ -86,7 +86,7 @@ int install_esp(chunk_t our_ska, chunk_t other_ska, chunk_t our_ske, chunk_t oth
 
     return 0;
 error:
-clear_esp(sa_in.spi, sa_out.spi, sp_in_idx, sp_out_idx);
+    clear_esp(sa_in.spi, sa_out.spi, sp_in_idx, sp_out_idx);
     return -1;
 }
 
