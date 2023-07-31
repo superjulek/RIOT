@@ -20,14 +20,14 @@ USEMODULE += ps
 
 USEMODULE += sock_udp
 
-# USEMODULE += ike
+USEMODULE += ike
 
 USEPKG += wolfssl
 USEMODULE += wolfssl_dtls
 USEMODULE += wolfcrypt_rsa
 USEMODULE += wolfcrypt_dh
 USEMODULE += wolfcrypt_ffdhe_2048 # for DHE
-#USEMODULE += wolfssl_tls
+USEMODULE += wolfssl_tls
 USEMODULE += wolfcrypt_ecc # for DHE
 
 ifeq (esp8266-esp-12x,$(BOARD))

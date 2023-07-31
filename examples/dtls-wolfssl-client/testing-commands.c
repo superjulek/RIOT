@@ -53,14 +53,25 @@ int benchmark_cmd(client_t *c, const char *addr)
 
     if (c->connect(addr, SERVER_PORT) < 0)
         return -1;
+    int tries = 0;
     while(1)
     {
+        tries++;
         int rsize = c->receive((char*)buf, BUF_SIZE);
         if (rsize < 0)
-            goto error;
+        {
+            if (tries > 10)
+                goto error;
+            continue;
+        }
         if (c->send((char*)buf, rsize) < 0)
-            goto error;
+        {
+            if (tries > 10)
+                goto error;
+            continue;
+        }
         gcnt++;
+        tries = 0;
     }
     printf("Success: %d.\n", gcnt);
     c->close();
