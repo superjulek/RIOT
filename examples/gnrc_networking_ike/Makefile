@@ -20,15 +20,15 @@ USEMODULE += shell_cmds_default
 
 USEMODULE += sock_udp
 
-#USEMODULE += ike
+USEMODULE += ike
 
 USEPKG += wolfssl
-USEMODULE += wolfssl
+#USEMODULE += wolfssl
 USEMODULE += wolfcrypt
-USEMODULE += wolfcrypt_rsa
+#USEMODULE += wolfcrypt_rsa
 USEMODULE += wolfcrypt_dh
-USEMODULE += wolfssl_internal
-USEMODULE += wolfcrypt_random
+#USEMODULE += wolfssl_internal
+#USEMODULE += wolfcrypt_random
 #USEMODULE += wolfcrypt_ffdhe_2048 # for DHE
 #USEMODULE += wolfssl_tls
 #USEMODULE += wolfcrypt_ecc # for DHE
